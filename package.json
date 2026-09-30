@@ -1,1 +1,14 @@
-{"name": "fc-livros-magicos", "private": true, "type": "module", "scripts": {"build": "node scripts/build.mjs", "dev": "node scripts/dev.mjs", "validate": "node scripts/validate.mjs", "smoke": "node scripts/smoke.mjs"}}
+{
+  "name": "fc-livros-magicos",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "validate": "node scripts/validate.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.8.0"
+  }
+}
