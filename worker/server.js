@@ -27,7 +27,7 @@ await env.BUCKET.put(key,JSON.stringify(body),{httpMetadata:{contentType:'applic
 return json({saved:true},200,cookie)}
 return json({error:'Método não permitido'},405)}
 if(url.pathname==='/api/admin/book'||url.pathname==='/api/admin/pdf'){
-const settings=orderSettings(env);
+const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
 if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
 const record=await readOrderRecord(env,url.searchParams.get('code')||'');
@@ -43,7 +43,7 @@ record.story=story;record.storyGeneratedAt=story.generatedAt;record.storyProvide
 await env.BUCKET.put('orders/'+record.code+'.json',JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
 return json({ok:true,code:record.code,story},200,cookie)}
 if(url.pathname==='/api/admin/status'){
-const settings=orderSettings(env);
+const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
 if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
 if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
@@ -52,10 +52,27 @@ let body;try{body=await request.json()}catch{return json({error:'Dados inválido
 const record=await updateOrderStatus(env,url.searchParams.get('code')||'',body&&body.status);
 if(!record)return json({error:'Pedido ou status inválido'},400,cookie);
 return json({ok:true,code:record.code,status:record.status,updatedAt:record.updatedAt},200,cookie)}
-if(url.pathname==='/api/shop'){const settings=orderSettings(env);return json({shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),adminConfigured:Boolean(settings.admin),storagePersistent:Boolean(settings.storagePersistent)},200,cookie)}
+if(url.pathname==='/api/admin/settings'){
+const settings=await resolvedOrderSettings(env);
+if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
+if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
+if(!env.BUCKET)return json({error:'Armazenamento indisponível'},503,cookie);
+if(request.method==='GET')return json({shop:settings.shop,whatsapp:settings.whatsapp,price:settings.price,pix:settings.pix,storagePersistent:Boolean(settings.storagePersistent),whatsappCloudConfigured:Boolean(settings.token&&settings.phoneId),aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI_API_KEY))},200,cookie);
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
+if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
+let body;try{body=await request.json()}catch{return json({error:'Dados inválidos'},400,cookie)}
+const clean=sanitizeAdminPreferences(body);
+if(!clean.shop)return json({error:'Informe o nome da loja.'},400,cookie);
+if(clean.whatsapp&&clean.whatsapp.length<12)return json({error:'Informe um WhatsApp válido com DDI e DDD.'},400,cookie);
+if(!clean.price)return json({error:'Informe o preço.'},400,cookie);
+await saveAdminPreferences(env,clean);
+const updated=await resolvedOrderSettings(env);
+return json({ok:true,shop:updated.shop,whatsapp:updated.whatsapp,price:updated.price,pix:updated.pix,storagePersistent:Boolean(updated.storagePersistent)},200,cookie)}
+if(url.pathname==='/api/shop'){const settings=await resolvedOrderSettings(env);return json({shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),adminConfigured:Boolean(settings.admin),storagePersistent:Boolean(settings.storagePersistent)},200,cookie)}
 if(url.pathname==='/api/order'){
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
-const settings=orderSettings(env);
+const settings=await resolvedOrderSettings(env);
 if(request.method==='POST'){
 if(request.headers.get('origin')!==url.origin)return json({error:'Origem inválida'},403);
 const draftObject=await env.BUCKET.get('briefings/'+token+'.json');
@@ -76,20 +93,24 @@ return json({code,link,waLink:orderWhatsAppLink(settings,summary),summary,shop:s
 return json({error:'Método não permitido'},405)}
 if(url.pathname.startsWith('/pedido/')){
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
-const settings=orderSettings(env);
+const settings=await resolvedOrderSettings(env);
 const record=await readOrderRecord(env,decodeURIComponent(url.pathname.slice('/pedido/'.length)));
 const access=url.searchParams.get('t')||'';
 const allowed=Boolean(record)&&(access===record.accessToken||(settings.admin&&access===settings.admin));
 if(!allowed)return new Response(orderNotFoundHtml(),{status:404,headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow',...cookie}});
 return new Response(orderPageHtml(record,settings,url.origin,Boolean(settings.admin&&access===settings.admin)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','referrer-policy':'no-referrer','content-security-policy':"default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'",...cookie}})}
 if(url.pathname==='/painel'){
-const settings=orderSettings(env);
+const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Painel não configurado: defina ADMIN_TOKEN.'},503,cookie);
 if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
+const view=url.searchParams.get('view')||'dashboard';
+if(view==='config'){
+const info={aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI_API_KEY))};
+return new Response(adminSettingsHtml(settings,settings.admin,info),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'",...cookie}})}
 const remove=orderCleanCode(url.searchParams.get('apagar')||'');
 if(remove)await deleteOrderRecord(env,remove);
-return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'",...cookie}})}
+return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'",...cookie}})}
 if(url.pathname.startsWith('/api/'))return json({error:'Não encontrado'},404);
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
 const path=url.pathname.length>1?(url.pathname.replace(/\/+$/,'')||'/'):url.pathname;
