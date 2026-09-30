@@ -51,7 +51,7 @@ const STEP_DEFS=[
 {slug:'idioma',label:'Idioma',need:'escolha em que língua o livro será lido',tag:'A língua em que o livro será lido'},
 {slug:'dedicatoria',label:'Toques finais',need:'',tag:'Os toques finais de carinho'},
 {slug:'revelacao',label:'Prévia',need:'a foto é necessária para gerar a prévia',tag:'Uma prévia da mágica'},
-{slug:'revisao',label:'Revisão',need:'informe um e-mail válido para continuar',tag:'Os detalhes de seu livro'}
+{slug:'revisao',label:'Revisão',need:'informe um WhatsApp válido para continuar',tag:'Os detalhes de seu livro'}
 ];
 const TOTAL=STEP_DEFS.length;
 const ages=[['0 a 2 anos','Primeiras palavras e descobertas','🌱'],['3 a 5 anos','Imaginação em cada página','✨'],['6 a 9 anos','Aventuras e novas conquistas','🚀'],['10+ anos','Histórias para ir mais longe','🌎']];
@@ -62,7 +62,7 @@ const objectives=[['Guardar esta fase','Uma lembrança que fica para sempre','�
 const languages=[['Português (BR)','O livro será escrito em português do Brasil','🇧🇷'],['English (US)','The book will be written in American English','🇺🇸'],['Español (LatAm)','El libro será escrito en español','🇪🇸']];
 const KINDS=[['Pessoa','🧑'],['Bichinho','🐶'],['Objeto','🧸']];
 let step=0,maxStep=0,category='Todos',query='',savedTimer,saveChain=Promise.resolve(),revision=0;
-let data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'',name:'',gender:'',years:'',personality:'',objective:'',cast:[],language:'',dedicationTitle:'',dedication:'',details:'',email:''};
+let data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'',name:'',gender:'',years:'',personality:'',objective:'',cast:[],language:'',dedicationTitle:'',dedication:'',details:'',whatsapp:''};
 let castDraft={kind:'Pessoa',name:'',detail:'',photo:''};
 let shopInfo=null,orderSent=null;
 let boot={step:0,explicit:false};
@@ -72,7 +72,7 @@ const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const readAsDataURL=f=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(f)});
 const loadImage=src=>new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=src});
-const emailOk=v=>/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(String(v||'').trim());
+const whatsappOk=v=>{const digits=String(v||'').replace(/\D/g,'');return digits.length>=10&&digits.length<=15};
 const stepFromPath=p=>{const m=String(p||'').match(/^\/criar\/([a-z]+)\/?$/);if(!m)return null;const i=STEP_DEFS.findIndex(s=>s.slug===m[1]);return i<0?null:i};
 const kindIcon=kind=>{const found=KINDS.find(k=>k[0]===kind);return found?found[1]:'🧑'};
 const hintText=()=>valid()?'':'Ainda falta: '+STEP_DEFS[step].need+'.';
@@ -80,8 +80,8 @@ function card(item,key){return `<button class="card ${data[key]===item[0]?'selec
 function header(title,sub){return `<h1>${esc(title)}</h1><p>${esc(sub)}</p>`}
 function field(key,label,placeholder='',multi=false){return `<label for="${key}">${esc(label)}</label>${multi?`<textarea id="${key}" data-field="${key}" placeholder="${esc(placeholder)}">${esc(data[key])}</textarea>`:`<input id="${key}" data-field="${key}" maxlength="100" value="${esc(data[key])}" placeholder="${esc(placeholder)}">`}`}
 function allowedYears(){return data.age===ages[0][0]?[0,1,2]:data.age===ages[1][0]?[3,4,5]:data.age===ages[2][0]?[6,7,8,9]:Array.from({length:9},(_,i)=>i+10)}
-function valid(){switch(step){case 0:return Boolean(data.age);case 1:return Boolean(data.photo);case 2:return Boolean(data.theme);case 3:return Boolean(data.feeling);case 4:return Boolean(data.style);case 5:return Boolean(data.name.trim()&&data.gender&&data.years!==''&&allowedYears().includes(Number(data.years)));case 6:return Boolean(data.objective);case 7:return true;case 8:return Boolean(data.language);case 9:return true;case 10:return Boolean(data.photo);default:return emailOk(data.email)}}
-function stepSummary(i){return [data.age,data.photo?'Foto adicionada':'',data.theme,data.feeling,data.style,data.name,data.objective,(data.cast||[]).length?data.cast.length+' no elenco':'',data.language,(data.dedication||data.dedicationTitle)?'Dedicatória escrita':'',data.photo?'Prévia disponível':'',data.email][i]||''}
+function valid(){switch(step){case 0:return Boolean(data.age);case 1:return Boolean(data.photo);case 2:return Boolean(data.theme);case 3:return Boolean(data.feeling);case 4:return Boolean(data.style);case 5:return Boolean(data.name.trim()&&data.gender&&data.years!==''&&allowedYears().includes(Number(data.years)));case 6:return Boolean(data.objective);case 7:return true;case 8:return Boolean(data.language);case 9:return true;case 10:return Boolean(data.photo);default:return whatsappOk(data.whatsapp)}}
+function stepSummary(i){return [data.age,data.photo?'Foto adicionada':'',data.theme,data.feeling,data.style,data.name,data.objective,(data.cast||[]).length?data.cast.length+' no elenco':'',data.language,(data.dedication||data.dedicationTitle)?'Dedicatória escrita':'',data.photo?'Prévia disponível':'',data.whatsapp][i]||''}
 function topicCards(){const normalized=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();const found=topics.filter(t=>(category==='Todos'||t[1]===category)&&normalized(t[0]).includes(normalized(query)));return found.length?found.map(i=>card(i,'theme')).join(''):'<div class="empty">Nenhum tema encontrado. Tente outra palavra.</div>'}
 function goTo(target,options={}){const push=options.push!==false;step=Math.max(0,Math.min(Math.round(target),TOTAL-1));maxStep=Math.max(maxStep,step);if(push)history.pushState({step},'','/criar/'+STEP_DEFS[step].slug);save();render();window.scrollTo({top:0,behavior:'smooth'})}
 function render(){
@@ -152,9 +152,8 @@ const blocks=[
 ];
 const photo=data.photo?`<img class="photo" src="${data.photo}" alt="Referência da criança">`:'';
 const body=blocks.map(([title,rows,back])=>`<div class="block"><h3>${esc(title)}<button class="quiet" data-step="${back}" type="button">Editar</button></h3><dl>${rows.map(([term,value])=>`<dt>${esc(term)}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>`).join('');
-const emailBlock=`<label for="email">Seu melhor e-mail</label><input id="email" data-field="email" type="email" maxlength="160" autocomplete="email" inputmode="email" placeholder="seu@email.com" value="${esc(data.email)}"><p class="counter">Usamos este e-mail para falar com você sobre o seu pedido. Você pode sair da lista quando quiser.</p><p class="counter" id="email-status">${emailOk(data.email)?'Tudo certo com o seu e-mail.':'Informe um e-mail válido para enviar o pedido.'}</p>`;
-const toolbar='<div class="toolbar no-print"><button class="primary" id="export" type="button">Baixar minhas respostas</button></div>';
-return header('O livro de '+(data.name||'sua criança')+' está quase pronto!','Confira e ajuste o que quiser antes de continuar.')+`<div class="summary">${photo}<dl><dt>Nome</dt><dd>${esc(data.name)}</dd><dt>Idade</dt><dd>${esc(data.years===''?'':data.years+' anos')}</dd><dt>Tema</dt><dd>${esc(data.theme)}</dd></dl></div>`+body+emailBlock+orderBlock()+toolbar+notice('<strong>Pronto.</strong> Ao enviar o pedido, suas respostas e a foto chegam no WhatsApp da loja, junto com o link privado do pedido. A produção do livro é feita por nós a partir deles.')+'<div class="block"><h3>Seus dados</h3><p class="counter">Você pode baixar uma cópia das respostas que preencheu. Arquivos de produção e briefings não são exibidos aqui.</p></div>';
+const whatsappBlock=`<label for="whatsapp">Seu WhatsApp</label><input id="whatsapp" data-field="whatsapp" type="tel" maxlength="25" autocomplete="tel" inputmode="tel" placeholder="Ex.: (85) 99999-9999" value="${esc(data.whatsapp)}"><p class="counter">Usaremos este número para falar com você sobre o pedido.</p><p class="counter" id="whatsapp-status">${whatsappOk(data.whatsapp)?'WhatsApp válido.':'Informe um WhatsApp com DDD para enviar o pedido.'}</p>`;
+return header('O livro de '+(data.name||'sua criança')+' está quase pronto!','Confira e ajuste o que quiser antes de continuar.')+`<div class="summary">${photo}<dl><dt>Nome</dt><dd>${esc(data.name)}</dd><dt>Idade</dt><dd>${esc(data.years===''?'':data.years+' anos')}</dd><dt>Tema</dt><dd>${esc(data.theme)}</dd></dl></div>`+body+whatsappBlock+orderBlock()+notice('<strong>Pronto.</strong> Ao enviar o pedido, suas respostas e a foto chegam no WhatsApp da loja, junto com o link privado do pedido. A produção do livro é feita por nós a partir deles.');
 }
 const notice=html=>`<div class="notice">${html}</div>`;
 function error(message){$('error').innerHTML=`<div class="error">${esc(message)}</div>`}
@@ -177,7 +176,7 @@ function bind(){
 document.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const key=b.dataset.key;data[key]=b.dataset.value;if(key==='age'&&!allowedYears().includes(Number(data.years)))data.years='';save();render()});
 document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>goTo(Number(b.dataset.step)));
 document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{category=b.dataset.category;render()});
-document.querySelectorAll('[data-field]').forEach(el=>el.oninput=()=>{data[el.dataset.field]=el.value;if(el.id==='dedication')$('counter').textContent=(280-el.value.length)+' caracteres restantes';if(el.id==='email')$('email-status').textContent=emailOk(el.value)?'Tudo certo com o seu e-mail.':'Informe um e-mail válido para liberar o download do briefing.';save();markInvalid()});
+document.querySelectorAll('[data-field]').forEach(el=>el.oninput=()=>{data[el.dataset.field]=el.value;if(el.id==='dedication')$('counter').textContent=(280-el.value.length)+' caracteres restantes';if(el.id==='whatsapp')$('whatsapp-status').textContent=whatsappOk(el.value)?'WhatsApp válido.':'Informe um WhatsApp com DDD para enviar o pedido.';save();markInvalid()});
 const search=$('search');
 if(search)search.oninput=e=>{query=e.target.value;$('topic-grid').innerHTML=topicCards();bindTopics()};
 const photo=$('photo');
@@ -193,16 +192,14 @@ const castAdd=$('cast-add');
 if(castAdd)castAdd.onclick=()=>{if(!castDraft.name.trim()||(data.cast||[]).length>=6)return;data.cast.push({kind:castDraft.kind,name:castDraft.name.trim(),detail:castDraft.detail.trim(),photo:castDraft.photo});castDraft={kind:'Pessoa',name:'',detail:'',photo:''};save();render()};
 const revealRange=$('reveal-range');
 if(revealRange)revealRange.oninput=e=>{const top=$('book-photo');if(top)top.style.clipPath='inset(0 0 0 '+e.target.value+'%)'};
-const exportButton=$('export');
-if(exportButton)exportButton.onclick=()=>{if(!emailOk(data.email)){error('Informe um e-mail válido para baixar a cópia das respostas.');return}const answers={crianca:data.name,faixa:data.age,idade:data.years,genero:data.gender,personalidade:data.personality,tema:data.theme,sentimento:data.feeling,estilo:data.style,roupa:data.outfit,objetivo:data.objective,elenco:(data.cast||[]).map(c=>c.name+(c.detail?' ('+c.detail+')':'')),idioma:data.language,dedicatoria:(data.dedicationTitle?data.dedicationTitle+' · ':'')+data.dedication,detalhes:data.details,email:data.email,pedido:orderSent?orderSent.code:'',enviadoEm:orderSent?new Date().toISOString():''};const blob=new Blob([JSON.stringify(answers,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='respostas-'+(data.name||'crianca').replace(/[^a-zA-Z0-9_-]/g,'_')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 const sendOrder=$('send-order');
-if(sendOrder)sendOrder.onclick=async()=>{if(!emailOk(data.email)){error('Informe um e-mail válido antes de enviar o pedido.');return}const status=$('order-status');sendOrder.disabled=true;if(status)status.textContent='Enviando o pedido…';try{await saveChain;const response=await fetch('/api/order',{method:'POST'});const payload=await response.json().catch(()=>null);if(!response.ok||!payload)throw new Error(payload&&payload.error?payload.error:'Não foi possível enviar o pedido.');orderSent=payload;render();if(payload.waLink)window.open(payload.waLink,'_blank','noopener')}catch(failure){if(status)status.textContent='O pedido não foi enviado.';error(failure.message||'Não foi possível enviar o pedido agora.');const button=$('send-order');if(button)button.disabled=false}};
+if(sendOrder)sendOrder.onclick=async()=>{if(!whatsappOk(data.whatsapp)){error('Informe um WhatsApp válido com DDD antes de enviar o pedido.');return}const status=$('order-status');sendOrder.disabled=true;if(status)status.textContent='Enviando o pedido…';try{await saveChain;const response=await fetch('/api/order',{method:'POST'});const payload=await response.json().catch(()=>null);if(!response.ok||!payload)throw new Error(payload&&payload.error?payload.error:'Não foi possível enviar o pedido.');orderSent=payload;render();if(payload.waLink)window.open(payload.waLink,'_blank','noopener')}catch(failure){if(status)status.textContent='O pedido não foi enviado.';error(failure.message||'Não foi possível enviar o pedido agora.');const button=$('send-order');if(button)button.disabled=false}};
 const copyOrder=$('copy-order');
 if(copyOrder)copyOrder.onclick=()=>{const summary=orderSent&&orderSent.summary?orderSent.summary:'';if(!summary)return;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(summary).then(()=>{copyOrder.textContent='Resumo copiado'}).catch(()=>error('Não foi possível copiar automaticamente. Abra o link do pedido e copie o resumo de lá.'));else error('Este navegador não copia automaticamente. Abra o link do pedido e copie o resumo de lá.')};
 }
 $('next').onclick=()=>{if(!valid())return;goTo(step+1)};
 $('back').onclick=()=>{if(step>0)goTo(step-1)};
-$('restart').onclick=()=>{if(!confirm('Começar um novo livro? O briefing atual será substituído.'))return;const email=data.email;data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'',name:'',gender:'',years:'',personality:'',objective:'',cast:[],language:'',dedicationTitle:'',dedication:'',details:'',email};castDraft={kind:'Pessoa',name:'',detail:'',photo:''};step=0;maxStep=0;category='Todos';query='';history.pushState({step:0},'','/criar/idade');save();render()};
+$('restart').onclick=()=>{if(!confirm('Começar um novo livro? O briefing atual será substituído.'))return;const whatsapp=data.whatsapp;data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'',name:'',gender:'',years:'',personality:'',objective:'',cast:[],language:'',dedicationTitle:'',dedication:'',details:'',whatsapp};castDraft={kind:'Pessoa',name:'',detail:'',photo:''};step=0;maxStep=0;category='Todos';query='';history.pushState({step:0},'','/criar/idade');save();render()};
 const cropCanvas=$('crop-canvas');
 cropCanvas.addEventListener('pointerdown',e=>{if(!crop.img)return;crop.dragging=true;crop.lastX=e.clientX;crop.lastY=e.clientY;cropCanvas.setPointerCapture(e.pointerId)});
 cropCanvas.addEventListener('pointermove',e=>{if(!crop.dragging)return;const rect=cropCanvas.getBoundingClientRect();const scale=cropCanvas.width/rect.width;crop.x+=(e.clientX-crop.lastX)*scale;crop.y+=(e.clientY-crop.lastY)*scale;crop.lastX=e.clientX;crop.lastY=e.clientY;drawCrop()});
