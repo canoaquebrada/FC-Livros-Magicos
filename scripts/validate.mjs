@@ -58,6 +58,12 @@ assert(painelHtml.includes('(85) 99999-9999')&&painelHtml.includes('Dinossauros'
 assert(painelHtml.includes('/pedido/'+order.code+'?t=token-de-teste'),'painel abre o pedido em modo administrador');
 assert(painelHtml.includes('Dashboard de pedidos')&&painelHtml.includes('admin-search')&&painelHtml.includes('admin-status-filter'),'dashboard profissional com busca e filtros');
 assert(painelHtml.includes('Pedidos')&&painelHtml.includes('Novos')&&painelHtml.includes('Em produção')&&painelHtml.includes('Pagos')&&painelHtml.includes('Enviados'),'cards de métricas do painel');
+assert(painelHtml.includes('Configurações')&&painelHtml.includes('Abrir site'),'navegação profissional do admin');
+const configPage=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&view=config'),env);assert.equal(configPage.status,200,'página de configurações');const configHtml=await configPage.text();
+for(const block of ['Configurações','Dados da loja','Integrações e segurança','Armazenamento persistente','WhatsApp Cloud API','Segurança'])assert(configHtml.includes(block),'configurações sem: '+block);
+const settingsGet=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste'),env);assert.equal(settingsGet.status,200,'leitura das configurações');
+const settingsBefore=await settingsGet.json();assert.equal(settingsBefore.shop,'FC Livros Mágicos','nome da loja nas configurações');
+assert.equal((await app.default.fetch(new Request('https://example.test/api/admin/settings?token=errado'),env)).status,403,'token inválido nas configurações');
 assert.equal((await app.default.fetch(new Request('https://example.test/painel?token=errado'),env)).status,403,'token inválido no painel');
 assert.equal((await app.default.fetch(new Request('https://example.test/painel'),env)).status,403,'painel sem token');
 const removed=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&apagar='+autoOrder.code),env);assert.equal(removed.status,200,'exclusão do pedido');
@@ -91,5 +97,9 @@ assert.equal(fallback.story.mock,true,'sem chave cai no provedor de demonstraç�
 await send({method:'PUT',headers,body:JSON.stringify({data:{name:'Levi'},step:1})},200,'briefing incompleto');
 const incomplete=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(incomplete.status,400,'pedido sem briefing completo');
 assert((await incomplete.json()).error.includes('Faltam informações'),'mensagem de campos faltantes');
+const settingsSave=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test'},body:JSON.stringify({shop:'FC Loja Teste',whatsapp:'85992019111',price:'R$ 59,90',pix:'pix-teste'})}),env);assert.equal(settingsSave.status,200,'salvamento das configurações');
+const settingsSaved=await settingsSave.json();assert.equal(settingsSaved.whatsapp,'5585992019111','WhatsApp normalizado nas configurações');
+const shopAfter=await (await app.default.fetch(new Request('https://example.test/api/shop'),env)).json();
+assert.equal(shopAfter.shop,'FC Loja Teste','nome da loja aplicado');assert.equal(shopAfter.price,'R$ 59,90','preço aplicado');assert.equal(shopAfter.pix,'pix-teste','Pix aplicado');assert.equal(shopAfter.whatsappConfigured,true,'WhatsApp aplicado');
 console.log('HTML/JS valid; 12 rotas de passo, deep link, crop/prévia, pedido no WhatsApp, painel e isolamento de sessão verificados.');
 async function send(options,expected,label){const response=await app.default.fetch(new Request('https://example.test/api/draft',options),env);assert.equal(response.status,expected,'esperava '+expected+' em '+label+' e recebeu '+response.status)}
