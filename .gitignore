@@ -1,0 +1,25 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Local data / uploaded customer data
+.local-r2/
+
+# Generated build output
+dist/
+
+# Local logs
+*.log
+
+# Backups / temporary files
+.backup-*/
+*.bak
+*.tmp
+
+# Dependencies and OS/editor files
+node_modules/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
