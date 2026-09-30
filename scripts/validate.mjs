@@ -53,7 +53,7 @@ const autoOrder=await autoResponse.json();
 assert.equal(autoOrder.notified.sent,true,'envio automático pelo Cloud API');assert.equal(calls.length,3,'upload da mídia, foto e mensagem');assert(calls[0].url.includes('/123456/media'),'endpoint de mídia');assert(calls[2].options.body.includes('Pedido '+autoOrder.code),'texto enviado');
 const painel=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste'),env);assert.equal(painel.status,200,'painel');const painelHtml=await painel.text();
 assert(painelHtml.includes(order.code)&&painelHtml.includes(autoOrder.code),'pedidos listados');
-assert(painelHtml.includes('WhatsApp da loja: 5511999999999'),'configuração visível');
+assert(painelHtml.includes('WhatsApp: 5511999999999'),'configuração visível');
 assert(painelHtml.includes('(85) 99999-9999')&&painelHtml.includes('Dinossauros'),'painel lista contato e tema do cliente');
 assert(painelHtml.includes('/pedido/'+order.code+'?t=token-de-teste'),'painel abre o pedido em modo administrador');
 assert(painelHtml.includes('Dashboard de pedidos')&&painelHtml.includes('admin-search')&&painelHtml.includes('admin-status-filter'),'dashboard profissional com busca e filtros');
