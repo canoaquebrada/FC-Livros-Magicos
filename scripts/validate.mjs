@@ -56,10 +56,18 @@ assert(painelHtml.includes(order.code)&&painelHtml.includes(autoOrder.code),'ped
 assert(painelHtml.includes('WhatsApp da loja 5511999999999'),'configuração visível');
 assert(painelHtml.includes('(85) 99999-9999')&&painelHtml.includes('Dinossauros'),'painel lista contato e tema do cliente');
 assert(painelHtml.includes('/pedido/'+order.code+'?t=token-de-teste'),'painel abre o pedido em modo administrador');
+assert(painelHtml.includes('Dashboard de pedidos')&&painelHtml.includes('admin-search')&&painelHtml.includes('admin-status-filter'),'dashboard profissional com busca e filtros');
+assert(painelHtml.includes('Pedidos')&&painelHtml.includes('Novos')&&painelHtml.includes('Em produção')&&painelHtml.includes('Pagos')&&painelHtml.includes('Enviados'),'cards de métricas do painel');
 assert.equal((await app.default.fetch(new Request('https://example.test/painel?token=errado'),env)).status,403,'token inválido no painel');
 assert.equal((await app.default.fetch(new Request('https://example.test/painel'),env)).status,403,'painel sem token');
 const removed=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&apagar='+autoOrder.code),env);assert.equal(removed.status,200,'exclusão do pedido');
 assert(!(await removed.text()).includes(autoOrder.code),'pedido removido da lista');assert.equal((await app.default.fetch(new Request(autoOrder.link),env)).status,404,'pedido apagado não abre mais');
+// ---- Alteração de status somente para o administrador ----
+const statusResponse=await app.default.fetch(new Request('https://example.test/api/admin/status?token=token-de-teste&code='+order.code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'em produção'})}),env);
+assert.equal(statusResponse.status,200,'alteração de status');
+const statusPayload=await statusResponse.json();assert.equal(statusPayload.status,'em produção','status atualizado');
+assert.equal((await app.default.fetch(new Request('https://example.test/api/admin/status?token=errado&code='+order.code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'pago'})}),env)).status,403,'token inválido ao alterar status');
+assert.equal((await app.default.fetch(new Request('https://example.test/api/admin/status?token=token-de-teste&code='+order.code,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'qualquer'})}),env)).status,400,'status inválido recusado');
 // ---- Produção (história, prompts e PDF) somente para o administrador ----
 const adminPath='/api/admin/book?token=token-de-teste&code=';
 assert.equal((await app.default.fetch(new Request('https://example.test/api/book',{method:'POST',headers}),env)).status,404,'cliente não gera história');
@@ -69,10 +77,10 @@ assert.equal(adminBook.story.pages.length,30,'30 páginas');assert.equal(adminBo
 assert.equal(adminBook.story.mock,true,'provedor de demonstração');assert(adminBook.story.title.includes('Levi')&&adminBook.story.pages[0].text.includes('Levi'),'nome presente na história');
 assert.equal((await app.default.fetch(new Request('https://example.test/api/admin/book?code='+order.code+'&token=errado',{method:'POST'}),env)).status,403,'token inválido na produção');
 const clientView=await (await app.default.fetch(new Request(order.link),env)).text();
-for(const leak of ['Briefing completo do cliente','Fotos recebidas','Resumo enviado','Cenas de produção','admin-generate','Prompts de ilustração','Prompt:','admin-status'])assert(!clientView.includes(leak),'material de produção vazou para o cliente: '+leak);
+for(const leak of ['Briefing completo do cliente','Fotos recebidas','Resumo do pedido','Cenas de produção','admin-generate','Prompts de ilustração','Prompt:','admin-order-status'])assert(!clientView.includes(leak),'material de produção vazou para o cliente: '+leak);
 assert(clientView.includes('Levi')&&clientView.includes('pix@exemplo.com'),'cliente continua vendo seus próprios dados');
 const adminView=await (await app.default.fetch(new Request('https://example.test/pedido/'+order.code+'?t=token-de-teste'),env)).text();
-for(const block of ['Briefing completo do cliente','Fotos recebidas','Resumo enviado','Cenas de produção','admin-generate','Prompts de ilustração','admin-status'])assert(adminView.includes(block),'visão do admin sem: '+block);
+for(const block of ['Briefing completo do cliente','Fotos recebidas','Resumo do pedido','Cenas de produção','admin-generate','Prompts de ilustração','admin-order-status','Voltar ao painel'])assert(adminView.includes(block),'visão do admin sem: '+block);
 const pdfResponse=await app.default.fetch(new Request('https://example.test/api/admin/pdf?token=token-de-teste&code='+order.code),env);assert.equal(pdfResponse.status,200,'PDF do administrador');
 assert.equal(pdfResponse.headers.get('content-type'),'application/pdf','tipo do PDF');assert(pdfResponse.headers.get('content-disposition').includes('livro-levi.pdf'),'nome do arquivo do PDF');
 const pdfBytes=new Uint8Array(await pdfResponse.arrayBuffer());assert.equal(String.fromCharCode(...pdfBytes.slice(0,5)),'%PDF-','assinatura do PDF');
