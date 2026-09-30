@@ -71,3 +71,10 @@ scripts/validate.mjs, scripts/smoke.mjs  verificação de rotas, API e renderiza
 ```
 
 A tabela de rotas do servidor e a lista de etapas do cliente são comparadas por `npm run validate`: adicionar ou renomear uma etapa exige atualizar as duas.
+
+
+## Preview na Vercel
+
+O repositório inclui `api/index.js` e `vercel.json` para abrir o projeto na Vercel.
+
+O adaptador usa armazenamento em memória apenas para demonstração. A interface e as rotas carregam normalmente, mas pedidos e briefings não têm persistência garantida entre reinicializações da função. Para produção, conecte um armazenamento persistente antes de usar com clientes.
