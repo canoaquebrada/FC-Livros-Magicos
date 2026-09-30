@@ -194,4 +194,28 @@ if(castAdd)castAdd.onclick=()=>{if(!castDraft.name.trim()||(data.cast||[]).lengt
 const revealRange=$('reveal-range');
 if(revealRange)revealRange.oninput=e=>{const top=$('book-photo');if(top)top.style.clipPath='inset(0 0 0 '+e.target.value+'%)'};
 const exportButton=$('export');
-if(exportButton)exportButton.onclick=()=>{if
+if(exportButton)exportButton.onclick=()=>{if(!emailOk(data.email)){error('Informe um e-mail válido para baixar a cópia das respostas.');return}const answers={crianca:data.name,faixa:data.age,idade:data.years,genero:data.gender,personalidade:data.personality,tema:data.theme,sentimento:data.feeling,estilo:data.style,roupa:data.outfit,objetivo:data.objective,elenco:(data.cast||[]).map(c=>c.name+(c.detail?' ('+c.detail+')':'')),idioma:data.language,dedicatoria:(data.dedicationTitle?data.dedicationTitle+' · ':'')+data.dedication,detalhes:data.details,email:data.email,pedido:orderSent?orderSent.code:'',enviadoEm:orderSent?new Date().toISOString():''};const blob=new Blob([JSON.stringify(answers,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='respostas-'+(data.name||'crianca').replace(/[^a-zA-Z0-9_-]/g,'_')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+const sendOrder=$('send-order');
+if(sendOrder)sendOrder.onclick=async()=>{if(!emailOk(data.email)){error('Informe um e-mail válido antes de enviar o pedido.');return}const status=$('order-status');sendOrder.disabled=true;if(status)status.textContent='Enviando o pedido…';try{await saveChain;const response=await fetch('/api/order',{method:'POST'});const payload=await response.json().catch(()=>null);if(!response.ok||!payload)throw new Error(payload&&payload.error?payload.error:'Não foi possível enviar o pedido.');orderSent=payload;render();if(payload.waLink)window.open(payload.waLink,'_blank','noopener')}catch(failure){if(status)status.textContent='O pedido não foi enviado.';error(failure.message||'Não foi possível enviar o pedido agora.');const button=$('send-order');if(button)button.disabled=false}};
+const copyOrder=$('copy-order');
+if(copyOrder)copyOrder.onclick=()=>{const summary=orderSent&&orderSent.summary?orderSent.summary:'';if(!summary)return;if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(summary).then(()=>{copyOrder.textContent='Resumo copiado'}).catch(()=>error('Não foi possível copiar automaticamente. Abra o link do pedido e copie o resumo de lá.'));else error('Este navegador não copia automaticamente. Abra o link do pedido e copie o resumo de lá.')};
+}
+$('next').onclick=()=>{if(!valid())return;goTo(step+1)};
+$('back').onclick=()=>{if(step>0)goTo(step-1)};
+$('restart').onclick=()=>{if(!confirm('Começar um novo livro? O briefing atual será substituído.'))return;const email=data.email;data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'',name:'',gender:'',years:'',personality:'',objective:'',cast:[],language:'',dedicationTitle:'',dedication:'',details:'',email};castDraft={kind:'Pessoa',name:'',detail:'',photo:''};step=0;maxStep=0;category='Todos';query='';history.pushState({step:0},'','/criar/idade');save();render()};
+const cropCanvas=$('crop-canvas');
+cropCanvas.addEventListener('pointerdown',e=>{if(!crop.img)return;crop.dragging=true;crop.lastX=e.clientX;crop.lastY=e.clientY;cropCanvas.setPointerCapture(e.pointerId)});
+cropCanvas.addEventListener('pointermove',e=>{if(!crop.dragging)return;const rect=cropCanvas.getBoundingClientRect();const scale=cropCanvas.width/rect.width;crop.x+=(e.clientX-crop.lastX)*scale;crop.y+=(e.clientY-crop.lastY)*scale;crop.lastX=e.clientX;crop.lastY=e.clientY;drawCrop()});
+cropCanvas.addEventListener('pointerup',()=>{crop.dragging=false});
+cropCanvas.addEventListener('pointercancel',()=>{crop.dragging=false});
+$('crop-zoom').addEventListener('input',e=>setZoom(Number(e.target.value)));
+$('crop-cancel').addEventListener('click',closeCrop);
+$('crop-confirm').addEventListener('click',confirmCrop);
+$('crop-modal').addEventListener('click',e=>{if(e.target===$('crop-modal'))closeCrop()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('crop-modal').hidden)closeCrop()});
+window.addEventListener('popstate',()=>{const target=stepFromPath(location.pathname);if(target===null||target===step)return;step=target;maxStep=Math.max(maxStep,step);render()});
+render();
+fetch('/api/draft').then(async r=>{if(!r.ok)throw Error();const d=await r.json();if(d&&d.data){data={...data,...d.data};if(!Array.isArray(data.cast))data.cast=[];if(!data.outfit)data.outfit='nova';const saved=Math.min(Math.max(Math.round(Number(d.step)||0),0),TOTAL-1);if(boot.explicit)maxStep=Math.max(maxStep,saved);else{step=saved;maxStep=Math.max(maxStep,saved)}render();$('status').textContent='Seu briefing foi recuperado'}}).catch(()=>{$('status').textContent='O salvamento está indisponível'});
+fetch('/api/shop').then(async response=>{if(!response.ok)throw Error();const payload=await response.json();if(payload){shopInfo=payload;if(step===TOTAL-1)render()}}).catch(()=>{});
+if(document.modelContext?.registerTool){try{document.modelContext.registerTool({name:'read_book_brief',description:'Ler as escolhas do briefing sem acessar a foto de referência.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:async()=>({age:data.age,theme:data.theme,feeling:data.feeling,style:data.style,language:data.language,name:data.name,cast:(data.cast||[]).map(c=>c.name),step:STEP_DEFS[step].label})})}catch{}}
+</script></body></html>
