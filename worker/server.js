@@ -42,6 +42,16 @@ let story;try{story=await generateStory(record.briefing,env)}catch(error){return
 record.story=story;record.storyGeneratedAt=story.generatedAt;record.storyProvider=story.provider;
 await env.BUCKET.put('orders/'+record.code+'.json',JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
 return json({ok:true,code:record.code,story},200,cookie)}
+if(url.pathname==='/api/admin/status'){
+const settings=orderSettings(env);
+if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
+if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
+let body;try{body=await request.json()}catch{return json({error:'Dados inválidos'},400,cookie)}
+const record=await updateOrderStatus(env,url.searchParams.get('code')||'',body&&body.status);
+if(!record)return json({error:'Pedido ou status inválido'},400,cookie);
+return json({ok:true,code:record.code,status:record.status,updatedAt:record.updatedAt},200,cookie)}
 if(url.pathname==='/api/shop'){const settings=orderSettings(env);return json({shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),adminConfigured:Boolean(settings.admin),storagePersistent:Boolean(settings.storagePersistent)},200,cookie)}
 if(url.pathname==='/api/order'){
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
