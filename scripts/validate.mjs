@@ -15,7 +15,7 @@ assert.equal((await app.default.fetch(new Request('https://example.test/criar/fo
 assert.equal((await app.default.fetch(new Request('https://example.test/criar/tema',{method:'HEAD'}),env)).status,200);
 assert.equal((await app.default.fetch(new Request('https://example.test/api/desconhecido'),env)).status,404);
 const headers={'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie};
-const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',email:'familia@exemplo.com'},step:11};
+const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
 await send({method:'PUT',headers,body:JSON.stringify(draft)},200,'salvamento do briefing');
 const get=await app.default.fetch(new Request('https://example.test/api/draft',{headers:{Cookie:cookie}}),env);assert.deepEqual(await get.json(),draft);
 const other=await app.default.fetch(new Request('https://example.test/api/draft'),env);assert.equal(await other.json(),null,'sessão sem briefing deve receber null');
@@ -28,17 +28,17 @@ await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,cast:[
 await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,photo:'data:text/html;base64,AAAA'},step:1})},400,'foto com formato inválido');
 // ---- Pedido enviado para o WhatsApp da loja ----
 const JPG='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
-const complete={data:{age:'3 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauros',feeling:'Coragem',style:'Aquarela',name:'Levi',gender:'Menino',years:'5',personality:'Curioso',objective:'Guardar esta fase',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',dedicationTitle:'Para Levi',dedication:'Com amor',details:'A praia',email:'familia@exemplo.com'},step:11};
+const complete={data:{age:'3 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauros',feeling:'Coragem',style:'Aquarela',name:'Levi',gender:'Menino',years:'5',personality:'Curioso',objective:'Guardar esta fase',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',dedicationTitle:'Para Levi',dedication:'Com amor',details:'A praia',whatsapp:'(85) 99999-9999'},step:11};
 await send({method:'PUT',headers,body:JSON.stringify(complete)},200,'briefing completo');
 const orderResponse=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(orderResponse.status,200,'criação do pedido');
 const order=await orderResponse.json();
 assert.match(order.code,/^[A-F0-9]{12}$/,'código do pedido');
 assert(order.link.startsWith('https://example.test/pedido/'),'link do pedido');assert(order.waLink.startsWith('https://wa.me/5511999999999?text='),'link do WhatsApp');
-assert(order.summary.includes('Pedido '+order.code)&&order.summary.includes('Levi')&&order.summary.includes('pix@exemplo.com'),'resumo do pedido');
+assert(order.summary.includes('Pedido '+order.code)&&order.summary.includes('Levi')&&order.summary.includes('pix@exemplo.com')&&order.summary.includes('(85) 99999-9999'),'resumo do pedido');
 assert.equal(order.whatsappConfigured,true,'número configurado');assert.equal(order.notified.sent,false,'envio automático desligado sem token');
 const orderPage=await app.default.fetch(new Request(order.link),env);assert.equal(orderPage.status,200,'página do pedido');
 const orderHtml=await orderPage.text();
-assert(orderHtml.includes('Levi')&&orderHtml.includes('pix@exemplo.com')&&orderHtml.includes('Pedido '+order.code),'dados na página do pedido');
+assert(orderHtml.includes('Levi')&&orderHtml.includes('pix@exemplo.com')&&orderHtml.includes('(85) 99999-9999')&&orderHtml.includes('Pedido '+order.code),'dados na página do pedido');
 assert(orderHtml.includes('data:image/jpeg'),'foto na página do pedido');
 assert(orderHtml.includes('noindex'),'página do pedido fora de buscadores');
 assert.equal((await app.default.fetch(new Request('https://example.test/pedido/'+order.code),env)).status,404,'link sem token deve falhar');
