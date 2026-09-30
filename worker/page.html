@@ -22,4 +22,43 @@ label{display:block;font-weight:650;font-size:14px;margin:20px 0 8px}input,texta
 .reveal-top{clip-path:inset(0 0 0 50%)}
 .reveal-tag{position:absolute;bottom:12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:rgba(37,32,57,.72);color:white;padding:5px 10px;border-radius:99px}
 .reveal-tag.left{left:12px}.reveal-tag.right{right:12px}
-.reveal input[type=range]{position:absolute;left:12px;right:12px;bottom:46px;width:ca
+.reveal input[type=range]{position:absolute;left:12px;right:12px;bottom:46px;width:calc(100% - 24px);border:0;background:none;padding:0}
+.modal{position:fixed;inset:0;background:rgba(28,22,45,.62);display:grid;place-items:center;padding:20px;z-index:40}
+.modal[hidden]{display:none}
+.modal-box{background:white;border-radius:20px;padding:24px;max-width:420px;width:100%;max-height:92vh;overflow:auto}
+.modal-box h2{font-size:20px;margin:0 0 8px}
+.modal-hint{margin:0 0 14px;font-size:14px}
+.modal-box canvas{width:100%;max-width:320px;aspect-ratio:1;display:block;margin:0 auto;border-radius:16px;background:#f4effc;touch-action:none;cursor:grab}
+.modal-box input[type=range]{margin-top:14px}
+.checklist{font-size:13px;color:#5c4f6b;background:#f7f3ff;border-radius:12px;padding:12px 18px;margin-top:14px}
+.checklist ul{margin:8px 0 0;padding-left:18px}.checklist li{margin:4px 0}
+.modal-note{font-size:12px;color:#7d7089;margin:14px 0 0;line-height:1.5}
+.modal-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:20px}
+@media(max-width:760px){.progress{margin-bottom:6px}.reveal{max-width:none}.cast-card{flex-wrap:wrap}.block dl{grid-template-columns:95px 1fr}}
+</style></head><body><header><div class="brand">FC <span>Livros Mágicos</span></div><button class="quiet" id="restart">Novo livro</button></header><div class="shell"><aside><h2 id="book-name">Seu próximo livro</h2><nav id="steps" aria-label="Etapas do livro"></nav><div class="side-note">Uma aventura com a sua criança no centro da história.<br><br>Você pode voltar e ajustar suas escolhas.</div><div id="status" role="status"></div></aside><main><div class="progress" role="presentation"><div class="progress-bar" id="progress-bar"></div></div><div class="mobile-progress" id="mobile-progress"></div><div class="eyebrow" id="eyebrow"></div><div id="content"></div><div id="error" role="alert"></div><div class="hint" id="hint"></div><div class="footer-actions" id="actions"><button class="secondary" id="back" type="button">Voltar</button><button class="primary" id="next" type="button">Continuar</button></div></main></div><footer class="bottom">FC Artes Digitais · Histórias personalizadas</footer>
+<script type="application/json" id="boot">{"step":0,"explicit":false}</script>
+<div class="modal" id="crop-modal" hidden><div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="crop-title"><h2 id="crop-title">Ajuste o recorte</h2><p class="modal-hint">Arraste a foto e use a barra para dar zoom.</p><canvas id="crop-canvas" width="320" height="320" aria-label="Área de recorte da foto"></canvas><input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" aria-label="Zoom do recorte"><div class="checklist"><strong>Confira antes de cortar:</strong><ul><li>Rosto bem visível e nítido</li><li>Foto com boa luz</li><li>Sem óculos escuros ou boné</li><li>Somente a criança está aparecendo na foto</li></ul></div><p class="modal-note">Esta foto será usada exclusivamente para criar o livro. Ela não será compartilhada nem utilizada para outros fins. 🔒</p><div class="modal-actions"><button class="secondary" id="crop-cancel" type="button">Cancelar</button><button class="primary" id="crop-confirm" type="button">Cortar</button></div></div></div>
+<script>
+const STEP_DEFS=[
+{slug:'idade',label:'Faixa etária',need:'escolha uma faixa de idade para continuar',tag:'Cada idade pede uma história'},
+{slug:'foto',label:'Foto',need:'adicione a foto de referência para continuar',tag:'O rosto de quem você ama vira personagem'},
+{slug:'tema',label:'Tema',need:'escolha um tema para continuar',tag:'Escolha o mundo da aventura'},
+{slug:'sentimentos',label:'Sentimento',need:'escolha um sentimento para continuar',tag:'Toda história deixa um sentimento'},
+{slug:'estilo',label:'Estilo',need:'escolha um estilo de ilustração para continuar',tag:'Agora a história ganha cores'},
+{slug:'estrela',label:'A criança',need:'preencha nome, gênero e idade para continuar',tag:'A estrela da história entra em cena'},
+{slug:'objetivo',label:'Objetivo',need:'escolha um objetivo para continuar',tag:'Cada aventura tem um propósito'},
+{slug:'personagens',label:'Personagens',need:'',tag:'A turma da aventura se reúne'},
+{slug:'idioma',label:'Idioma',need:'escolha em que língua o livro será lido',tag:'A língua em que o livro será lido'},
+{slug:'dedicatoria',label:'Toques finais',need:'',tag:'Os toques finais de carinho'},
+{slug:'revelacao',label:'Prévia',need:'a foto é necessária para gerar a prévia',tag:'Uma prévia da mágica'},
+{slug:'revisao',label:'Revisão',need:'informe um e-mail válido para continuar',tag:'Os detalhes de seu livro'}
+];
+const TOTAL=STEP_DEFS.length;
+const ages=[['0 a 2 anos','Primeiras palavras e descobertas','🌱'],['3 a 5 anos','Imaginação em cada página','✨'],['6 a 9 anos','Aventuras e novas conquistas','🚀'],['10+ anos','Histórias para ir mais longe','🌎']];
+const topics=[['Dinossauros','Aventura','🦕'],['Super-herói','Aventura','🦸'],['Caça ao tesouro','Aventura','🧭'],['Corridas','Aventura','🏎️'],['Acampar','Aventura','⛺'],['Viagem no tempo','Aventura','⌛'],['Príncipes e princesas','Fantasia','👑'],['Unicórnios','Fantasia','🦄'],['Floresta mágica','Fantasia','🌳'],['Sereias','Fantasia','🧜'],['Cavaleiros e dragões','Fantasia','🐉'],['Escola de magia','Fantasia','🪄'],['No espaço','Mundos','🪐'],['No fundo do mar','Mundos','🐠'],['Na selva','Mundos','🐒'],['Terra dos doces','Mundos','🍭'],['Futebol','Esportes','⚽'],['Ballet e dança','Esportes','🩰'],['Andar de bicicleta','Esportes','🚲'],['Artes marciais','Esportes','🥋'],['Novo bebê','Família','🍼'],['Um novo bichinho','Família','🐶'],['Férias em família','Família','🏖️'],['Dia dos Avós','Família','💛'],['Aniversário','Celebrações','🎂'],['Natal','Celebrações','🎄'],['Dia das Mães','Celebrações','🌷'],['Dia dos Pais','Celebrações','💙'],['Medo do escuro','Sentimentos','🌙'],['Encontrar confiança','Sentimentos','⭐'],['Amizade na escola','Sentimentos','🤝'],['Aprender a compartilhar','Sentimentos','🎁'],['Alfabeto','Aprendizado','🔤'],['Formas e cores','Aprendizado','🎨'],['Cuidar da natureza','Aprendizado','🍃'],['Escovar os dentes','Aprendizado','🪥'],['Ir ao zoológico','Atividades','🦁'],['Cozinhar','Atividades','🍪'],['Ir à praia','Atividades','🐚'],['Brincar ao ar livre','Atividades','🪁'],['A arca de Noé','Fé','🌈'],['Jesus e as crianças','Fé','🕊️']];
+const feelings=[['Coragem','Dar o primeiro passo mesmo com medo','🦁'],['Partilha','Dividir torna a brincadeira melhor','🎁'],['Cuidar da natureza','Respeitar os animais e o planeta','🌿'],['Amizade','Estar junto faz a diferença','🤝'],['Amor','Demonstrar cuidado e carinho','💛'],['Perseverança','Aprender a tentar outra vez','🌟'],['Honestidade','Encontrar força na verdade','💬'],['Respeito','Ouvir e cuidar de quem está perto','🫶']];
+const styles=[['Cartoon mágico','Cores vivas e personagens expressivos','✨'],['Aquarela','Pinceladas suaves e atmosfera delicada','🖌️'],['Lápis colorido','Texturas e traços de desenho artesanal','✏️'],['Livro clássico','Ilustrações com clima de conto infantil','📖'],['Mangá','Expressão e movimento nas cenas','💫'],['Massinha','Personagens com aparência de modelagem','🧸'],['Kawaii','Formas suaves e personagens fofos','🌸'],['Quadrinhos','Cenas dinâmicas e narrativa visual','💥']];
+const objectives=[['Guardar esta fase','Uma lembrança que fica para sempre','📸'],['Criar gosto pela leitura','Mais vontade de abrir o livro','📚'],['Conversar sobre um sentimento','Medo, timidez, ciúme ou uma perda','💬'],['Presentear alguém','Um presente com o nome e o rosto de quem recebe','🎁'],['Celebrar uma data','Aniversário, Natal, primeiro dia de escola','🎉'],['Prefiro não informar','Seguimos com a história do tema escolhido','🤫']];
+const languages=[['Português (BR)','O livro será escrito em português do Brasil','🇧🇷'],['English (US)','The book will be written in American English','🇺🇸'],['Español (LatAm)','El libro será escrito en español','🇪🇸']];
+const KINDS=[['Pessoa','🧑'],['Bichinho','🐶'],['Objeto','🧸']];
+let step=0,maxStep=0,category='Todos',query='',savedTimer,saveChain=Promise.resolve(),revision=0;
