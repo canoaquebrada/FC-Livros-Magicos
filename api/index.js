@@ -1,19 +1,60 @@
 import worker from '../dist/server/index.js';
+import { put, get, del } from '@vercel/blob';
 
-// Adaptador para Vercel Functions. O projeto original usa um binding R2 (BUCKET).
-// Na Vercel, este fallback em memória serve apenas para demonstração/preview.
-// Para produção, conecte um armazenamento persistente e substitua este BUCKET.
+// Armazenamento persistente na Vercel.
+// Ao conectar um Vercel Blob privado ao projeto, a Vercel fornece
+// BLOB_READ_WRITE_TOKEN e todos os briefings/pedidos passam a sobreviver
+// a redeploys e reinicializações de Functions.
+const blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
+const blobPrefix = 'fc-livros-magicos/';
+const storagePersistent = Boolean(blobToken);
+
+// Fallback apenas para desenvolvimento/preview sem Blob conectado.
 const memory = globalThis.__FC_LIVROS_BUCKET__ || (globalThis.__FC_LIVROS_BUCKET__ = new Map());
+
+async function readBlobJson(pathname) {
+  const result = await get(pathname, {
+    access: 'private',
+    token: blobToken,
+    useCache: false,
+  });
+  if (!result) return null;
+  const raw = await new Response(result.stream).text();
+  return JSON.parse(raw);
+}
+
 const BUCKET = {
   async get(key) {
+    if (storagePersistent) {
+      const pathname = blobPrefix + key;
+      const value = await readBlobJson(pathname);
+      return value === null ? null : { json: async () => value };
+    }
     if (!memory.has(key)) return null;
     const raw = memory.get(key);
     return { json: async () => JSON.parse(raw) };
   },
+
   async put(key, value) {
+    if (storagePersistent) {
+      await put(blobPrefix + key, String(value), {
+        access: 'private',
+        token: blobToken,
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: 'application/json; charset=utf-8',
+        cacheControlMaxAge: 0,
+      });
+      return;
+    }
     memory.set(key, String(value));
   },
+
   async delete(key) {
+    if (storagePersistent) {
+      await del(blobPrefix + key, { token: blobToken });
+      return;
+    }
     memory.delete(key);
   },
 };
@@ -56,7 +97,11 @@ export default async function handler(req, res) {
       body,
     });
 
-    const response = await worker.fetch(request, { ...process.env, BUCKET });
+    const response = await worker.fetch(request, {
+      ...process.env,
+      BUCKET,
+      STORAGE_PERSISTENT: storagePersistent ? '1' : '',
+    });
     res.statusCode = response.status;
 
     const setCookies = [];
