@@ -42,7 +42,7 @@ let story;try{story=await generateStory(record.briefing,env)}catch(error){return
 record.story=story;record.storyGeneratedAt=story.generatedAt;record.storyProvider=story.provider;
 await env.BUCKET.put('orders/'+record.code+'.json',JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
 return json({ok:true,code:record.code,story},200,cookie)}
-if(url.pathname==='/api/shop'){const settings=orderSettings(env);return json({shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),adminConfigured:Boolean(settings.admin)},200,cookie)}
+if(url.pathname==='/api/shop'){const settings=orderSettings(env);return json({shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),adminConfigured:Boolean(settings.admin),storagePersistent:Boolean(settings.storagePersistent)},200,cookie)}
 if(url.pathname==='/api/order'){
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
 const settings=orderSettings(env);
