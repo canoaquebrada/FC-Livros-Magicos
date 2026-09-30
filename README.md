@@ -73,8 +73,22 @@ scripts/validate.mjs, scripts/smoke.mjs  verificação de rotas, API e renderiza
 A tabela de rotas do servidor e a lista de etapas do cliente são comparadas por `npm run validate`: adicionar ou renomear uma etapa exige atualizar as duas.
 
 
-## Preview na Vercel
+## Vercel em produção
 
-O repositório inclui `api/index.js` e `vercel.json` para abrir o projeto na Vercel.
+O repositório inclui `api/index.js` e `vercel.json`.
 
-O adaptador usa armazenamento em memória apenas para demonstração. A interface e as rotas carregam normalmente, mas pedidos e briefings não têm persistência garantida entre reinicializações da função. Para produção, conecte um armazenamento persistente antes de usar com clientes.
+Para produção, conecte um **Vercel Blob privado** ao projeto. Quando o Blob é conectado, a Vercel fornece `BLOB_READ_WRITE_TOKEN` automaticamente. O adaptador passa a salvar de forma persistente:
+
+- rascunhos do briefing por sessão;
+- pedido completo;
+- foto principal da criança;
+- fotos dos personagens adicionais;
+- WhatsApp do cliente;
+- tema, sentimento, estilo, objetivo, idioma, dedicatória e demais respostas;
+- índice do painel administrativo.
+
+Sem Blob conectado, o sistema entra em fallback temporário em memória e o painel mostra um alerta.
+
+O painel administrativo fica em `/painel?token=<ADMIN_TOKEN>`. O token deve ser configurado como variável de ambiente na Vercel e **nunca** deve ser colocado no GitHub. Ao clicar em um pedido, o administrador abre a visão completa com briefing, fotos, resumo enviado, geração da história e PDF.
+
+Para o envio do pedido ao WhatsApp da loja, configure `WHATSAPP_NUMBER`. O fluxo comum abre o WhatsApp do cliente com o resumo completo pronto para envio. Para envio totalmente automático pelo servidor, configure também `WHATSAPP_TOKEN` e `WHATSAPP_PHONE_ID` da WhatsApp Cloud API.
