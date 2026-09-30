@@ -152,4 +152,46 @@ const blocks=[
 ];
 const photo=data.photo?`<img class="photo" src="${data.photo}" alt="Referência da criança">`:'';
 const body=blocks.map(([title,rows,back])=>`<div class="block"><h3>${esc(title)}<button class="quiet" data-step="${back}" type="button">Editar</button></h3><dl>${rows.map(([term,value])=>`<dt>${esc(term)}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>`).join('');
-const emailBlock=`<label for="email">Seu melhor e-mail</label><input id="email" data-field="email" type="email" maxlength="160" autocomplete="email" inputmode="email" placeholder="seu@email.com" value="${esc(data.email)}"><p class="counter">Usamos este e-mail para falar com você sobre o seu pedido. Você pode sair da lista quando quiser.</p><p class="counter" id="email-status">
+const emailBlock=`<label for="email">Seu melhor e-mail</label><input id="email" data-field="email" type="email" maxlength="160" autocomplete="email" inputmode="email" placeholder="seu@email.com" value="${esc(data.email)}"><p class="counter">Usamos este e-mail para falar com você sobre o seu pedido. Você pode sair da lista quando quiser.</p><p class="counter" id="email-status">${emailOk(data.email)?'Tudo certo com o seu e-mail.':'Informe um e-mail válido para enviar o pedido.'}</p>`;
+const toolbar='<div class="toolbar no-print"><button class="primary" id="export" type="button">Baixar minhas respostas</button></div>';
+return header('O livro de '+(data.name||'sua criança')+' está quase pronto!','Confira e ajuste o que quiser antes de continuar.')+`<div class="summary">${photo}<dl><dt>Nome</dt><dd>${esc(data.name)}</dd><dt>Idade</dt><dd>${esc(data.years===''?'':data.years+' anos')}</dd><dt>Tema</dt><dd>${esc(data.theme)}</dd></dl></div>`+body+emailBlock+orderBlock()+toolbar+notice('<strong>Pronto.</strong> Ao enviar o pedido, suas respostas e a foto chegam no WhatsApp da loja, junto com o link privado do pedido. A produção do livro é feita por nós a partir deles.')+'<div class="block"><h3>Seus dados</h3><p class="counter">Você pode baixar uma cópia das respostas que preencheu. Arquivos de produção e briefings não são exibidos aqui.</p></div>';
+}
+const notice=html=>`<div class="notice">${html}</div>`;
+function error(message){$('error').innerHTML=`<div class="error">${esc(message)}</div>`}
+const crop={img:null,zoom:1,x:0,y:0,onDone:null,dragging:false,lastX:0,lastY:0};
+function cropMetrics(){const canvas=$('crop-canvas');const size=canvas.width;const img=crop.img;const scale=Math.max(size/img.width,size/img.height)*crop.zoom;return {size,scale,width:img.width*scale,height:img.height*scale}}
+function clampCrop(){const m=cropMetrics();crop.x=Math.min(0,Math.max(m.size-m.width,crop.x));crop.y=Math.min(0,Math.max(m.size-m.height,crop.y))}
+function drawCrop(){const canvas=$('crop-canvas');const ctx=canvas.getContext('2d');const m=cropMetrics();clampCrop();ctx.clearRect(0,0,m.size,m.size);ctx.fillStyle='#f4effc';ctx.fillRect(0,0,m.size,m.size);ctx.drawImage(crop.img,crop.x,crop.y,m.width,m.height);ctx.strokeStyle='rgba(115,68,214,.9)';ctx.lineWidth=2;ctx.setLineDash([7,7]);ctx.beginPath();ctx.arc(m.size/2,m.size/2,m.size/2-2,0,Math.PI*2);ctx.stroke();ctx.setLineDash([])}
+function openCrop(source,onDone){loadImage(source).then(img=>{crop.img=img;crop.zoom=1;crop.onDone=onDone;const m=cropMetrics();crop.x=(m.size-m.width)/2;crop.y=(m.size-m.height)/2;$('crop-zoom').value='1';$('crop-modal').hidden=false;drawCrop()}).catch(()=>error('Não foi possível abrir esta imagem. Escolha outra foto.'))}
+function setZoom(value){const m=cropMetrics();const factor=value/crop.zoom;const center=m.size/2;crop.x=center-(center-crop.x)*factor;crop.y=center-(center-crop.y)*factor;crop.zoom=value;drawCrop()}
+function closeCrop(){crop.img=null;crop.dragging=false;$('crop-modal').hidden=true}
+function confirmCrop(){const m=cropMetrics();const out=document.createElement('canvas');out.width=out.height=768;const ctx=out.getContext('2d');const k=out.width/m.size;ctx.fillStyle='white';ctx.fillRect(0,0,out.width,out.height);ctx.drawImage(crop.img,crop.x*k,crop.y*k,m.width*k,m.height*k);let url;try{url=out.toDataURL('image/jpeg',0.92)}catch{closeCrop();error('Não foi possível processar esta imagem. Escolha outra foto.');return}const done=crop.onDone;closeCrop();if(done)done(url)}
+async function pickPhoto(file,onDone){if(!file)return;if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){error('Escolha JPG, PNG ou WebP com até 5 MB.');return}try{openCrop(await readAsDataURL(file),onDone)}catch{error('Não foi possível abrir esta imagem. Escolha outra foto.')}}
+function posterize(ctx,size,levels){const image=ctx.getImageData(0,0,size,size);const pixels=image.data;const step=255/(levels-1);for(let i=0;i<pixels.length;i+=4){pixels[i]=Math.round(pixels[i]/step)*step;pixels[i+1]=Math.round(pixels[i+1]/step)*step;pixels[i+2]=Math.round(pixels[i+2]/step)*step}ctx.putImageData(image,0,0)}
+function buildPreview(){const source=data.photo;const status=$('preview-status');if(!source)return;loadImage(source).then(img=>{try{const size=560;const canvas=document.createElement('canvas');canvas.width=canvas.height=size;const ctx=canvas.getContext('2d');ctx.fillStyle='#f7f2ff';ctx.fillRect(0,0,size,size);if('filter' in ctx)ctx.filter='saturate(1.35) contrast(1.08) brightness(1.05)';const scale=Math.max(size/img.width,size/img.height);ctx.drawImage(img,(size-img.width*scale)/2,(size-img.height*scale)/2,img.width*scale,img.height*scale);if('filter' in ctx)ctx.filter='none';posterize(ctx,size,6);const target=$('book-photo');if(target)target.src=canvas.toDataURL('image/jpeg',0.9);if(status)status.textContent='Arraste a linha para comparar'}catch{if(status)status.textContent='A prévia não pôde ser gerada neste navegador'}}).catch(()=>{if(status)status.textContent='A prévia não pôde ser gerada'})}
+function save(){revision++;clearTimeout(savedTimer);savedTimer=setTimeout(()=>persist(),700)}
+function persist(){const snapshot={data:{...data,cast:(data.cast||[]).map(c=>({...c}))},step,revision};saveChain=saveChain.catch(()=>{}).then(async()=>{try{$('status').textContent='Salvando briefing…';const r=await fetch('/api/draft',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)});if(!r.ok)throw Error();$('status').textContent='Briefing salvo'}catch(e){$('status').textContent='Não foi possível salvar';error('Suas escolhas continuam nesta tela, mas não foram salvas. Tente novamente.');throw e}});return saveChain}
+function markInvalid(){const ok=valid();$('next').disabled=!ok;$('hint').textContent=hintText()}
+function bindTopics(){document.querySelectorAll('#topic-grid [data-key]').forEach(b=>b.onclick=()=>{data.theme=b.dataset.value;save();render()})}
+function bind(){
+document.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const key=b.dataset.key;data[key]=b.dataset.value;if(key==='age'&&!allowedYears().includes(Number(data.years)))data.years='';save();render()});
+document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>goTo(Number(b.dataset.step)));
+document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{category=b.dataset.category;render()});
+document.querySelectorAll('[data-field]').forEach(el=>el.oninput=()=>{data[el.dataset.field]=el.value;if(el.id==='dedication')$('counter').textContent=(280-el.value.length)+' caracteres restantes';if(el.id==='email')$('email-status').textContent=emailOk(el.value)?'Tudo certo com o seu e-mail.':'Informe um e-mail válido para liberar o download do briefing.';save();markInvalid()});
+const search=$('search');
+if(search)search.oninput=e=>{query=e.target.value;$('topic-grid').innerHTML=topicCards();bindTopics()};
+const photo=$('photo');
+if(photo)photo.onchange=e=>pickPhoto(e.target.files[0],url=>{data.photo=url;save();render()});
+const recrop=$('recrop');
+if(recrop)recrop.onclick=()=>openCrop(data.photo,url=>{data.photo=url;save();render()});
+document.querySelectorAll('[data-cast-kind]').forEach(b=>b.onclick=()=>{castDraft.kind=b.dataset.castKind;render()});
+document.querySelectorAll('[data-cast-field]').forEach(el=>el.oninput=()=>{castDraft[el.dataset.castField]=el.value;const add=$('cast-add');if(add)add.disabled=!castDraft.name.trim()});
+document.querySelectorAll('[data-remove-cast]').forEach(b=>b.onclick=()=>{data.cast.splice(Number(b.dataset.removeCast),1);save();render()});
+const castPhoto=$('cast-photo');
+if(castPhoto)castPhoto.onchange=e=>pickPhoto(e.target.files[0],url=>{castDraft.photo=url;const preview=$('cast-preview');if(preview){preview.src=url;preview.hidden=false}});
+const castAdd=$('cast-add');
+if(castAdd)castAdd.onclick=()=>{if(!castDraft.name.trim()||(data.cast||[]).length>=6)return;data.cast.push({kind:castDraft.kind,name:castDraft.name.trim(),detail:castDraft.detail.trim(),photo:castDraft.photo});castDraft={kind:'Pessoa',name:'',detail:'',photo:''};save();render()};
+const revealRange=$('reveal-range');
+if(revealRange)revealRange.oninput=e=>{const top=$('book-photo');if(top)top.style.clipPath='inset(0 0 0 '+e.target.value+'%)'};
+const exportButton=$('export');
+if(exportButton)exportButton.onclick=()=>{if
