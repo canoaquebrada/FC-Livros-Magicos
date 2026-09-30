@@ -28,7 +28,7 @@ await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,cast:[
 await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,photo:'data:text/html;base64,AAAA'},step:1})},400,'foto com formato inválido');
 // ---- Pedido enviado para o WhatsApp da loja ----
 const JPG='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
-const complete={data:{age:'3 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauros',feeling:'Coragem',style:'Aquarela',name:'Levi',gender:'Menino',years:'5',personality:'Curioso',objective:'Guardar esta fase',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',dedicationTitle:'Para Levi',dedication:'Com amor',details:'A praia',whatsapp:'(85) 99999-9999'},step:11};
+const complete={data:{age:'0 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauros',feeling:'Coragem',style:'Aquarela',name:'Levi',gender:'Menino',years:'5',personality:'Curioso',objective:'Guardar esta fase',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',dedicationTitle:'Para Levi',dedication:'Com amor',details:'A praia',whatsapp:'(85) 99999-9999'},step:11};
 await send({method:'PUT',headers,body:JSON.stringify(complete)},200,'briefing completo');
 const orderResponse=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(orderResponse.status,200,'criação do pedido');
 const order=await orderResponse.json();
