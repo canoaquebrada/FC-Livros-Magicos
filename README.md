@@ -42,7 +42,7 @@ Para publicar fora de Sites, configure um bucket R2 com binding `BUCKET` e as va
 
 ## Produção (somente administrador)
 
-Nada de produção é exposto ao cliente. Quem preenche o formulário vê apenas as próprias respostas, a própria foto e o botão de envio; o botão "Baixar minhas respostas" entrega um JSON com o que ele respondeu (sem prompts, sem cenas, sem PDF). As rotas antigas de geração por sessão foram removidas (`/api/book` e `/api/book/pdf` respondem 404).
+Nada de produção é exposto ao cliente. Quem preenche o formulário vê apenas as próprias respostas, a própria foto e o botão de envio. Na revisão, o contato solicitado é o WhatsApp do cliente; não há botão para baixar as respostas. As rotas antigas de geração por sessão foram removidas (`/api/book` e `/api/book/pdf` respondem 404).
 
 Todo o material de produção fica na página do pedido, que só renderiza a parte administrativa quando aberta com o `ADMIN_TOKEN`:
 
