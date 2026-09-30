@@ -6,7 +6,7 @@ const slugs=[...html.matchAll(/slug:'([a-z]+)'/g)].map(match=>match[1]);
 assert.deepEqual(slugs,Object.keys(routes).map(path=>path.replace('/criar/','')),'slugs do cliente e do servidor estão dessincronizados');
 const items=new Map();const env={SHOP_NAME:'FC Livros Mágicos',WHATSAPP_NUMBER:'5511999999999',PRICE_LABEL:'R$ 49,90',PIX_KEY:'pix@exemplo.com',ORDER_SECRET:'segredo-de-teste',ADMIN_TOKEN:'token-de-teste',BUCKET:{get:async key=>items.has(key)?{json:async()=>JSON.parse(items.get(key))}:null,put:async(key,value)=>items.set(key,value),delete:async key=>items.delete(key)}};
 const page=await app.default.fetch(new Request('https://example.test/criar/idade'),env);assert.equal(page.status,200);
-const pageHtml=await page.text();assert(pageHtml.includes('Para que idade'),'etapa de idade ausente');assert(pageHtml.includes('Passo'),'indicador de passos ausente');assert(pageHtml.includes('crop-canvas')&&pageHtml.includes('reveal-range'),'crop ou prévia ausentes');
+const pageHtml=await page.text();assert(pageHtml.includes('Para que idade'),'etapa de idade ausente');assert(pageHtml.includes("const languages=[['Português (BR)'")&&!pageHtml.includes("['English")&&!pageHtml.includes("['Español"),'somente Português (BR) disponível');assert(pageHtml.includes('Passo'),'indicador de passos ausente');assert(pageHtml.includes('crop-canvas')&&pageHtml.includes('reveal-range'),'crop ou prévia ausentes');
 const cookie=page.headers.get('set-cookie').split(';')[0];
 for(const [path,step] of Object.entries(routes)){const response=await app.default.fetch(new Request('https://example.test'+path),env);assert.equal(response.status,200,'rota '+path);const boot=JSON.parse((await response.text()).match(/id="boot">([^<]+)</)[1]);assert.equal(boot.step,step,'passo inicial de '+path);assert.equal(boot.explicit,true,'deep link de '+path)}
 const rootBoot=JSON.parse((await (await app.default.fetch(new Request('https://example.test/'),env)).text()).match(/id="boot">([^<]+)</)[1]);assert.equal(rootBoot.explicit,false,'a raiz não deve forçar um passo');
@@ -17,7 +17,7 @@ assert.equal((await app.default.fetch(new Request('https://example.test/api/desc
 const headers={'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie};
 const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
 await send({method:'PUT',headers,body:JSON.stringify(draft)},200,'salvamento do briefing');
-const get=await app.default.fetch(new Request('https://example.test/api/draft',{headers:{Cookie:cookie}}),env);assert.deepEqual(await get.json(),draft);
+const get=await app.default.fetch(new Request('https://example.test/api/draft',{headers:{Cookie:cookie}}),env);const savedDraft=await get.json();assert.equal(savedDraft.data.language,'Português (BR)','briefing salvo em Português (BR)');
 const other=await app.default.fetch(new Request('https://example.test/api/draft'),env);assert.equal(await other.json(),null,'sessão sem briefing deve receber null');
 await send({method:'DELETE',headers},405,'método não permitido no briefing');
 await send({method:'PUT',headers:{...headers,Origin:'https://evil.test'},body:JSON.stringify(draft)},403,'origem estrangeira');

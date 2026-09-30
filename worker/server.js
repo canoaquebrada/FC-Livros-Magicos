@@ -15,7 +15,7 @@ try{
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
-if(request.method==='GET'){const object=await env.BUCKET.get(key);return json(object?await object.json():null,200,cookie)}
+if(request.method==='GET'){const object=await env.BUCKET.get(key);if(!object)return json(null,200,cookie);const saved=await object.json();if(saved&&saved.data)saved.data.language='Português (BR)';return json(saved,200,cookie)}
 if(request.method==='PUT'){
 if(request.headers.get('origin')!==url.origin)return json({error:'Origem inválida'},403);
 if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415);
@@ -23,6 +23,7 @@ const raw=await request.text();
 if(raw.length>MAX_BODY)return json({error:'Arquivo muito grande'},413);
 let body;try{body=JSON.parse(raw)}catch{return json({error:'Dados inválidos'},400)}
 if(!draftOk(body))return json({error:'Dados inválidos'},400);
+body.data.language='Português (BR)';
 await env.BUCKET.put(key,JSON.stringify(body),{httpMetadata:{contentType:'application/json'}});
 return json({saved:true},200,cookie)}
 return json({error:'Método não permitido'},405)}
@@ -79,6 +80,7 @@ const draftObject=await env.BUCKET.get('briefings/'+token+'.json');
 if(!draftObject)return json({error:'Preencha o formulário antes de enviar o pedido.'},400,cookie);
 const draft=await draftObject.json();
 const briefing=(draft&&draft.data)||{};
+briefing.language='Português (BR)';
 const missing=requiredBriefingFields(briefing);
 if(missing.length)return json({error:'Faltam informações: '+missing.join(', ')+'.'},400,cookie);
 const customerWhatsapp=cleanText(briefing.whatsapp).replace(/[^0-9]/g,'');if(customerWhatsapp.length<10||customerWhatsapp.length>15)return json({error:'Informe um WhatsApp válido com DDD para enviar o pedido.'},400,cookie);

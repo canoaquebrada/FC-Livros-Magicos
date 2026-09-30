@@ -32,6 +32,8 @@ function start(stepIndex){
   return {context,get,content};
 }
 const failures=[];
+if((html.match(/Português \(BR\)/g)||[]).length<1)failures.push('Português (BR) não está disponível');
+if((html.match(/const languages=\[/g)||[]).length!==1)failures.push('configuração de idioma inválida');
 const titles=slugs.map((slug,index)=>{
   const {get,content}=start(index);
   const title=/<h1>([^<]*)<\/h1>/.exec(content);
