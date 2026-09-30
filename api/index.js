@@ -43,6 +43,12 @@ export default async function handler(req, res) {
     const proto = req.headers['x-forwarded-proto'] || 'https';
     const host = req.headers.host || 'localhost';
     const url = new URL(req.url || '/', `${proto}://${host}`);
+    const routedPath = url.searchParams.get('__path');
+    if (routedPath !== null) {
+      url.pathname = '/' + routedPath.replace(/^\/+/, '');
+      url.searchParams.delete('__path');
+    }
+
     const body = await requestBody(req);
     const request = new Request(url, {
       method: req.method,
