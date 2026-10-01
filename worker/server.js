@@ -91,7 +91,7 @@ const accessToken=await orderAccessToken(code,settings.secret);
 const link=url.origin+orderLink(code,accessToken);
 const summary=orderSummary(briefing,code,settings,link);
 const record={code,accessToken,status:'novo',total:settings.price,createdAt:new Date().toISOString(),briefing,summary,story:null,notified:{sent:false,reason:''}};
-try{record.notified=await sendOrderToWhatsApp(settings,summary,briefing.photo)}catch(error){record.notified={sent:false,reason:error.message}}
+try{record.notified=await sendOrderToWhatsApp(settings,summary,briefing)}catch(error){record.notified={sent:false,reason:error.message}}
 await saveOrderRecord(env,record);
 await removeDraftIndex(env,token);
 return json({code,link,waLink:orderWhatsAppLink(settings,summary),summary,shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),painelConfigured:Boolean(settings.admin),notified:record.notified},200,cookie)}

@@ -53,6 +53,7 @@ if(first.valid)failures.push('WhatsApp inválido aceito na revisão');
 if(!second.valid||second.hint!=='')failures.push('WhatsApp válido recusado na revisão');
 if(first.review.includes('book-page'))failures.push('a revisão do cliente ainda exibe páginas de produção');
 for(const marker of ['whatsapp','Mel','Aquarela','Português (BR)','Com amor'])if(!first.review.includes(marker))failures.push('revisão sem "'+marker+'"');
+if(!first.review.includes('Personagens que vão aparecer')||!first.review.includes('Bichinho')||!first.review.includes('cachorro'))failures.push('revisão não mostra os personagens completos');
 if((first.review.match(/data-step="5"/g)||[]).length!==1)failures.push('revisão sem atalho de edição da criança');
 if(!first.review.includes('send-order')||!first.review.includes('FINALIZAR E ENVIAR NO WHATSAPP')||!first.review.includes('Seu livro está quase pronto'))failures.push('revisão sem CTA forte do WhatsApp');
 if(first.review.includes('Baixar minhas respostas')||first.review.includes('id="export"'))failures.push('revisão ainda oferece download das respostas do cliente');

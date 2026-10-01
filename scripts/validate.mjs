@@ -15,7 +15,7 @@ assert.equal((await app.default.fetch(new Request('https://example.test/criar/fo
 assert.equal((await app.default.fetch(new Request('https://example.test/criar/tema',{method:'HEAD'}),env)).status,200);
 assert.equal((await app.default.fetch(new Request('https://example.test/api/desconhecido'),env)).status,404);
 const headers={'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie};
-const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
+const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:JPG}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
 await send({method:'PUT',headers,body:JSON.stringify(draft)},200,'salvamento do briefing');
 const get=await app.default.fetch(new Request('https://example.test/api/draft',{headers:{Cookie:cookie}}),env);const savedDraft=await get.json();assert.equal(savedDraft.data.language,'Português (BR)','briefing salvo em Português (BR)');
 const trackedDrafts=JSON.parse(items.get('briefings/index.json'));assert.equal(trackedDrafts.length,1,'rascunho entrou no índice de carrinhos');assert.equal(trackedDrafts[0].progress,100,'progresso do rascunho registrado');
@@ -36,7 +36,7 @@ const order=await orderResponse.json();
 assert.equal(JSON.parse(items.get('briefings/index.json')).length,0,'carrinho removido após virar pedido');
 assert.match(order.code,/^[A-F0-9]{12}$/,'código do pedido');
 assert(order.link.startsWith('https://example.test/pedido/'),'link do pedido');assert(order.waLink.startsWith('https://wa.me/5511999999999?text='),'link do WhatsApp');
-assert(order.summary.includes('Pedido '+order.code)&&order.summary.includes('Levi')&&order.summary.includes('pix@exemplo.com')&&order.summary.includes('(85) 99999-9999'),'resumo do pedido');
+assert(order.summary.includes('Pedido '+order.code)&&order.summary.includes('Levi')&&order.summary.includes('pix@exemplo.com')&&order.summary.includes('(85) 99999-9999'),'resumo do pedido');assert(order.summary.includes('Personagens que vão aparecer')&&order.summary.includes('Mel · Bichinho · cachorro'),'personagens presentes no resumo do WhatsApp');
 assert.equal(order.whatsappConfigured,true,'número configurado');assert.equal(order.notified.sent,false,'envio automático desligado sem token');
 const orderPage=await app.default.fetch(new Request(order.link),env);assert.equal(orderPage.status,200,'página do pedido');
 const orderHtml=await orderPage.text();
@@ -53,7 +53,7 @@ globalThis.fetch=async(target,options)=>{calls.push({url:String(target),options}
 const autoResponse=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),{...env,WHATSAPP_TOKEN:'token-wa',WHATSAPP_PHONE_ID:'123456'});
 globalThis.fetch=realFetch;
 const autoOrder=await autoResponse.json();
-assert.equal(autoOrder.notified.sent,true,'envio automático pelo Cloud API');assert.equal(calls.length,3,'upload da mídia, foto e mensagem');assert(calls[0].url.includes('/123456/media'),'endpoint de mídia');assert(calls[2].options.body.includes('Pedido '+autoOrder.code),'texto enviado');
+assert.equal(autoOrder.notified.sent,true,'envio automático pelo Cloud API');assert.equal(calls.length,5,'fotos dos personagens e mensagem enviadas');assert(calls[0].url.includes('/123456/media')&&calls[2].url.includes('/123456/media'),'uploads das fotos principal e do elenco');assert(calls[4].options.body.includes('Pedido '+autoOrder.code)&&calls[4].options.body.includes('Mel'),'texto com personagens enviado');
 items.set('briefings/index.json',JSON.stringify([{token:'a'.repeat(64),cartId:'CART000001',createdAt:'2026-09-29T10:00:00.000Z',updatedAt:'2026-09-29T10:30:00.000Z',step:10,progress:92,name:'Ana',whatsapp:'(85) 98888-7777',theme:'Fadas',hasPhoto:true}]));
 const painel=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste'),env);assert.equal(painel.status,200,'painel');const painelHtml=await painel.text();
 assert(painelHtml.includes(order.code)&&painelHtml.includes(autoOrder.code),'pedidos listados');
@@ -91,7 +91,7 @@ const clientView=await (await app.default.fetch(new Request(order.link),env)).te
 for(const leak of ['Briefing completo do cliente','Fotos recebidas','Resumo do pedido','Cenas de produção','admin-generate','Prompts de ilustração','Prompt:','admin-order-status'])assert(!clientView.includes(leak),'material de produção vazou para o cliente: '+leak);
 assert(clientView.includes('Levi')&&clientView.includes('pix@exemplo.com'),'cliente continua vendo seus próprios dados');
 const adminView=await (await app.default.fetch(new Request('https://example.test/pedido/'+order.code+'?t=token-de-teste'),env)).text();
-for(const block of ['Briefing completo do cliente','Fotos recebidas','Resumo do pedido','Cenas de produção','admin-generate','Prompts de ilustração','admin-order-status','Voltar ao painel'])assert(adminView.includes(block),'visão do admin sem: '+block);
+for(const block of ['Briefing completo do cliente','Personagens que vão aparecer','Resumo do pedido','Cenas de produção','admin-generate','Prompts de ilustração','admin-order-status','Voltar ao painel'])assert(adminView.includes(block),'visão do admin sem: '+block);
 const pdfResponse=await app.default.fetch(new Request('https://example.test/api/admin/pdf?token=token-de-teste&code='+order.code),env);assert.equal(pdfResponse.status,200,'PDF do administrador');
 assert.equal(pdfResponse.headers.get('content-type'),'application/pdf','tipo do PDF');assert(pdfResponse.headers.get('content-disposition').includes('livro-levi.pdf'),'nome do arquivo do PDF');
 const pdfBytes=new Uint8Array(await pdfResponse.arrayBuffer());assert.equal(String.fromCharCode(...pdfBytes.slice(0,5)),'%PDF-','assinatura do PDF');
