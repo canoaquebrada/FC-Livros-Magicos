@@ -48,7 +48,7 @@ if(!contents[0].includes('Nome no livro')||!contents[0].includes('Faixa etária'
 if(!contents[1].includes('Sobre o que')&&!contents[1].includes('Escolha a história'))failures.push('etapa História sem tema');
 if(!contents[1].includes('id="style"')||!contents[1].includes('Cartoon mágico'))failures.push('estilo padrão não está dentro da História');
 if(!contents[2].includes('Adicionar ao elenco'))failures.push('etapa Personagens ausente');
-if(!contents[3].includes('Dedicatória')||!contents[3].includes('opcional'))failures.push('Personalização não está opcional');
+if(!contents[3].includes('Dê o toque final')||!contents[3].includes('dedication')||!contents[3].includes('details'))failures.push('etapa Personalização incompleta');
 
 const final=start(4).context;
 new vm.Script(`data.name='Levi';data.age='0 a 5 anos';data.years='5';data.gender='Menino';data.photo='data:image/jpeg;base64,AAAA';data.theme='Dinossauros';data.feeling='Coragem';data.style='Cartoon mágico';data.objective='Guardar esta fase';data.cast=[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}];data.language='Português (BR)';data.dedication='Com amor';data.details='A praia';data.whatsapp='(85) 99999-9999';shopInfo={shop:'FC Livros Mágicos',price:'R$ 49,90',pix:'pix@exemplo.com',pixCopyPaste:'000201PIXTESTE123456789',whatsappConfigured:true};step=4;render();globalThis.__final=document.getElementById('content').innerHTML;orderSent={code:'ABCD1234EF56',link:'https://exemplo.test/pedido/ABCD1234EF56?t=abc',waLink:'https://wa.me/5511999999999?text=oi',summary:'*Pedido ABCD1234EF56*',price:'R$ 49,90',pix:'pix@exemplo.com',pixCopyPaste:'000201PIXTESTE123456789',notified:{sent:false}};render();globalThis.__sent=document.getElementById('content').innerHTML;`).runInContext(final);
