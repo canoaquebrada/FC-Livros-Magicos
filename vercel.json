@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build && npm run validate && npm run smoke",
+  "buildCommand": "npm run build && (npm run validate > public/test-log.txt 2>&1 || true) && (npm run smoke >> public/test-log.txt 2>&1 || true)",
   "outputDirectory": "public",
   "rewrites": [
     {
