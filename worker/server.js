@@ -35,44 +35,36 @@ const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira
 const apiKey=cleanText(env.QUACKAPI_API_KEY);
 const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
 if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink},200,cookie);
-const matchPhoto=body.photo.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-if(!matchPhoto)return json({error:'Formato da foto não suportado.'},400,cookie);
-const prompt='Use a imagem enviada exclusivamente como referência da identidade da pessoa ou pet. Gere UMA NOVA IMAGEM, não descreva a foto. Crie uma prévia profissional de '+typeLabel+' no estilo '+styleLabel+'. Preserve ao máximo rosto, idade aparente, cabelo, tom de pele, formato do rosto e características reais. Composição elegante, iluminação profissional, aparência natural e comercial. Não adicionar texto, logotipo ou marca d’água. Manter conteúdo apropriado para todas as idades, sem nudez ou conteúdo sexual.';
-let b64='',format='jpeg',lastError='';
+const prompt='EDITE a foto enviada e devolva UMA NOVA IMAGEM. Use a foto exclusivamente como referência visual e preserve rigorosamente a identidade real da pessoa ou pet: rosto, idade aparente, formato facial, cabelo, olhos, nariz, boca, tom de pele e demais características. Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante. Não adicionar letras, logotipos ou marca d água. Não trocar a pessoa por outra. Conteúdo apropriado para todas as idades.';
+let generated;
 try{
-const response=await fetch(baseUrl+'/v1/responses',{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:JSON.stringify({model,input:[{role:'user',content:[{type:'input_text',text:prompt},{type:'input_image',image_url:body.photo}]}],tools:[{type:'image_generation',size:'1024x1024',quality:'low',output_format:'jpeg'}]})});
-if(response.ok){
-const generated=await response.json();
-for(const item of generated.output||[]){if(item&&item.type==='image_generation_call'&&typeof item.result==='string'){b64=item.result;format=item.output_format||'jpeg';break}}
-if(!b64&&generated.data&&generated.data[0]&&typeof generated.data[0].b64_json==='string')b64=generated.data[0].b64_json;
-}else{lastError='responses '+response.status+' '+(await response.text()).slice(0,300)}
-}catch(error){lastError='responses '+error.message}
-if(!b64){
+const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:JSON.stringify({model,prompt,image:body.photo,response_format:'b64_json',size:'1024x1024'})});
+if(!response.ok){
+const detail=(await response.text()).slice(0,800);
+console.error('QuackAPI image generation failed',response.status,detail);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink},200,cookie);
+}
+generated=await response.json();
+}catch(error){
+console.error('QuackAPI image request failed',error&&error.message?error.message:error);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink},200,cookie);
+}
+const item=generated&&generated.data&&generated.data[0];
+if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink},200,cookie);
+if(typeof item.b64_json==='string'&&item.b64_json.length>50)return json({preview:'data:image/jpeg;base64,'+item.b64_json,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
+if(typeof item.url==='string'&&item.url)return json({preview:item.url,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
+if(item.id){
 try{
-const bytes=Uint8Array.from(atob(matchPhoto[2]),ch=>ch.charCodeAt(0));
-const form=new FormData();
-form.append('model',model);
-form.append('image[]',new Blob([bytes],{type:matchPhoto[1]}),'foto-cliente.'+(matchPhoto[1]==='image/png'?'png':matchPhoto[1]==='image/webp'?'webp':'jpg'));
-form.append('prompt',prompt);
-form.append('size','1024x1024');
-form.append('quality','low');
-form.append('output_format','jpeg');
-const response=await fetch(baseUrl+'/v1/images/edits',{method:'POST',headers:{authorization:'Bearer '+apiKey},body:form});
-if(response.ok){
-const generated=await response.json();
-if(generated&&generated.data&&generated.data[0]){
-if(typeof generated.data[0].b64_json==='string')b64=generated.data[0].b64_json;
-else if(typeof generated.data[0].url==='string'){
-const imageResponse=await fetch(generated.data[0].url);
-if(imageResponse.ok){const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));b64=btoa(binary)}
+const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
+if(imageResponse.ok){
+const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
+let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
+const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
+return json({preview:'data:'+contentType+';base64,'+btoa(binary),demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
 }
+}catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
 }
-}else{lastError+=' | edits '+response.status+' '+(await response.text()).slice(0,300)}
-}catch(error){lastError+=' | edits '+error.message}
-}
-if(!b64){console.error('QuackAPI preview failed',lastError);return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',waLink},200,cookie)}
-format=format==='png'?'png':format==='webp'?'webp':'jpeg';
-return json({preview:'data:image/'+format+';base64,'+b64,demo:false,provider:'quackapi',model,waLink},200,cookie)}
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
