@@ -13,6 +13,58 @@ export default {async fetch(request,env){
 const url=new URL(request.url);const match=(request.headers.get('cookie')||'').match(/(?:^|;\s*)fc_session=([a-f0-9]{64})(?:;|$)/);let token=match?.[1];let cookie={};
 if(!token){token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');cookie={'set-cookie':`fc_session=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`}}
 try{
+if(url.pathname==='/quiz'||url.pathname==='/quiz/'){
+if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
+if(request.method==='GET'){await registerVisit(env,token)}
+return new Response(request.method==='HEAD'?null:QUIZ_HTML,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'same-origin','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",...cookie}})}
+if(url.pathname==='/api/preview'){
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
+if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
+const raw=await request.text();if(raw.length>9000000)return json({error:'A foto ficou grande demais. Escolha outra imagem.'},413,cookie);
+let body;try{body=JSON.parse(raw)}catch{return json({error:'Dados inválidos'},400,cookie)}
+const typeMap={casal:'casal romântico',familia:'família',infantil:'retrato infantil',pet:'retrato de pet',caricatura:'caricatura digital',homenagem:'homenagem afetiva'};
+const styleMap={studio:'estúdio profissional com fundo clean e iluminação suave',praia:'praia bonita com luz natural',jeans:'ensaio moderno com roupas jeans elegantes e camiseta clara',cartoon:'arte ilustrada moderna, sofisticada e bem acabada'};
+const typeLabel=typeMap[body.type],styleLabel=styleMap[body.style];
+if(!typeLabel||!styleLabel||!photoOk(body.photo,8000000))return json({error:'Escolha uma foto, um tipo e um estilo válidos.'},400,cookie);
+const settings=await resolvedOrderSettings(env);
+const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
+const waText='Olá! Eu gerei uma prévia no site da FC Artes Digitais. Tipo: '+typeLabel+'. Estilo: '+styleLabel+'. Quero finalizar meu pedido.';
+const waLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent(waText):'';
+const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira.com.br').replace(/\/+$/,'');
+const apiKey=cleanText(env.QUACKAPI_API_KEY);
+const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
+if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink},200,cookie);
+const prompt='EDITE a foto enviada e devolva UMA NOVA IMAGEM. Use a foto exclusivamente como referência visual e preserve rigorosamente a identidade real da pessoa ou pet: rosto, idade aparente, formato facial, cabelo, olhos, nariz, boca, tom de pele e demais características. Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante. Não adicionar letras, logotipos ou marca d água. Não trocar a pessoa por outra. Conteúdo apropriado para todas as idades.';
+let generated;
+try{
+const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:JSON.stringify({model,prompt,image:body.photo,response_format:'b64_json',size:'1024x1024'})});
+if(!response.ok){
+const detail=(await response.text()).slice(0,800);
+console.error('QuackAPI image generation failed',response.status,detail);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink},200,cookie);
+}
+generated=await response.json();
+}catch(error){
+console.error('QuackAPI image request failed',error&&error.message?error.message:error);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink},200,cookie);
+}
+const item=generated&&generated.data&&generated.data[0];
+if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink},200,cookie);
+if(typeof item.b64_json==='string'&&item.b64_json.length>50)return json({preview:'data:image/jpeg;base64,'+item.b64_json,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
+if(typeof item.url==='string'&&item.url)return json({preview:item.url,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
+if(item.id){
+try{
+const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
+if(imageResponse.ok){
+const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
+let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
+const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
+return json({preview:'data:'+contentType+';base64,'+btoa(binary),demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
+}
+}catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
+}
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
