@@ -31,28 +31,48 @@ const settings=await resolvedOrderSettings(env);
 const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
 const waText='Olá! Eu gerei uma prévia no site da FC Artes Digitais. Tipo: '+typeLabel+'. Estilo: '+styleLabel+'. Quero finalizar meu pedido.';
 const waLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent(waText):'';
-const provider=cleanText(env.AI_PROVIDER).toLowerCase();
-const apiKey=cleanText(env.OPENAI_API_KEY)||(provider==='openai'?cleanText(env.AI_API_KEY):'');
-if(!apiKey)return json({preview:body.photo,demo:true,waLink},200,cookie);
+const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira.com.br').replace(/\/+$/,'');
+const apiKey=cleanText(env.QUACKAPI_API_KEY);
+const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
+if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink},200,cookie);
 const matchPhoto=body.photo.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
 if(!matchPhoto)return json({error:'Formato da foto não suportado.'},400,cookie);
-const bytes=Uint8Array.from(atob(matchPhoto[2]),c=>c.charCodeAt(0));
-const prompt='Use a imagem enviada exclusivamente como referência da identidade da pessoa ou pet. Crie uma prévia profissional de '+typeLabel+' no estilo '+styleLabel+'. Preserve ao máximo rosto, idade aparente, cabelo, tom de pele, formato do rosto e características reais. Composição elegante, iluminação profissional, aparência natural e comercial. Não adicionar texto, logotipo ou marca d’água. Manter conteúdo apropriado para todas as idades, sem nudez ou conteúdo sexual.';
+const prompt='Use a imagem enviada exclusivamente como referência da identidade da pessoa ou pet. Gere UMA NOVA IMAGEM, não descreva a foto. Crie uma prévia profissional de '+typeLabel+' no estilo '+styleLabel+'. Preserve ao máximo rosto, idade aparente, cabelo, tom de pele, formato do rosto e características reais. Composição elegante, iluminação profissional, aparência natural e comercial. Não adicionar texto, logotipo ou marca d’água. Manter conteúdo apropriado para todas as idades, sem nudez ou conteúdo sexual.';
+let b64='',format='jpeg',lastError='';
+try{
+const response=await fetch(baseUrl+'/v1/responses',{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:JSON.stringify({model,input:[{role:'user',content:[{type:'input_text',text:prompt},{type:'input_image',image_url:body.photo}]}],tools:[{type:'image_generation',size:'1024x1024',quality:'low',output_format:'jpeg'}]})});
+if(response.ok){
+const generated=await response.json();
+for(const item of generated.output||[]){if(item&&item.type==='image_generation_call'&&typeof item.result==='string'){b64=item.result;format=item.output_format||'jpeg';break}}
+if(!b64&&generated.data&&generated.data[0]&&typeof generated.data[0].b64_json==='string')b64=generated.data[0].b64_json;
+}else{lastError='responses '+response.status+' '+(await response.text()).slice(0,300)}
+}catch(error){lastError='responses '+error.message}
+if(!b64){
+try{
+const bytes=Uint8Array.from(atob(matchPhoto[2]),ch=>ch.charCodeAt(0));
 const form=new FormData();
-form.append('model','gpt-image-2');
+form.append('model',model);
 form.append('image[]',new Blob([bytes],{type:matchPhoto[1]}),'foto-cliente.'+(matchPhoto[1]==='image/png'?'png':matchPhoto[1]==='image/webp'?'webp':'jpg'));
 form.append('prompt',prompt);
 form.append('size','1024x1024');
 form.append('quality','low');
 form.append('output_format','jpeg');
-let response;
-try{response=await fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{authorization:'Bearer '+apiKey},body:form})}catch(error){console.error('Preview API connection failed',error.message);return json({preview:body.photo,demo:true,waLink},200,cookie)}
-if(!response.ok){const detail=(await response.text()).slice(0,500);console.error('Preview generation failed',response.status,detail);return json({preview:body.photo,demo:true,waLink},200,cookie)}
-let generated;try{generated=await response.json()}catch{return json({preview:body.photo,demo:true,waLink},200,cookie)}
-const b64=generated&&generated.data&&generated.data[0]&&generated.data[0].b64_json;
-if(!b64)return json({preview:body.photo,demo:true,waLink},200,cookie);
-const format=generated.output_format==='png'?'png':generated.output_format==='webp'?'webp':'jpeg';
-return json({preview:'data:image/'+format+';base64,'+b64,demo:false,waLink},200,cookie)}
+const response=await fetch(baseUrl+'/v1/images/edits',{method:'POST',headers:{authorization:'Bearer '+apiKey},body:form});
+if(response.ok){
+const generated=await response.json();
+if(generated&&generated.data&&generated.data[0]){
+if(typeof generated.data[0].b64_json==='string')b64=generated.data[0].b64_json;
+else if(typeof generated.data[0].url==='string'){
+const imageResponse=await fetch(generated.data[0].url);
+if(imageResponse.ok){const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));b64=btoa(binary)}
+}
+}
+}else{lastError+=' | edits '+response.status+' '+(await response.text()).slice(0,300)}
+}catch(error){lastError+=' | edits '+error.message}
+}
+if(!b64){console.error('QuackAPI preview failed',lastError);return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',waLink},200,cookie)}
+format=format==='png'?'png':format==='webp'?'webp':'jpeg';
+return json({preview:'data:image/'+format+';base64,'+b64,demo:false,provider:'quackapi',model,waLink},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
