@@ -57,7 +57,7 @@ for(const marker of ['whatsapp','Mel','Aquarela','Português (BR)','Com amor'])i
 if(!first.review.includes('Personagens que vão aparecer')||!first.review.includes('Bichinho')||!first.review.includes('cachorro'))failures.push('revisão não mostra os personagens completos');
 if((first.review.match(/data-step="5"/g)||[]).length!==1)failures.push('revisão sem atalho de edição da criança');
 if(!first.review.includes('send-order')||!first.review.includes('FINALIZAR E ENVIAR NO WHATSAPP')||!first.review.includes('Seu livro está quase pronto'))failures.push('revisão sem CTA forte do WhatsApp');
-if(!first.review.includes('PAGAR AGORA VIA PIX')||!first.review.includes('pix-code')||!first.review.includes('000201PIXTESTE123456789'))failures.push('revisão sem Pix Copia e Cola');
+if(!sent.includes('PAGAR AGORA VIA PIX')||!sent.includes('pix-code')||!sent.includes('000201PIXTESTE123456789'))failures.push('checkout sem Pix Copia e Cola');
 if(first.review.includes('Baixar minhas respostas')||first.review.includes('id="export"'))failures.push('revisão ainda oferece download das respostas do cliente');
 for(const leak of ['book-pdf','Gerar história','Orientação para ilustração','Baixar briefing','generate','Prompt:'])if(first.review.includes(leak))failures.push('revisão expõe material de produção: '+leak);
 if(!orderBlockCheck(sent))failures.push('bloco do pedido enviado sem código, link do WhatsApp ou cópia do resumo');
