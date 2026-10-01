@@ -61,18 +61,11 @@ label{display:block;font-weight:650;font-size:14px;margin:20px 0 8px}input,texta
 <div class="modal" id="crop-modal" hidden><div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="crop-title"><h2 id="crop-title">Ajuste o recorte</h2><p class="modal-hint">Arraste a foto e use a barra para dar zoom.</p><canvas id="crop-canvas" width="320" height="320" aria-label="Área de recorte da foto"></canvas><input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" aria-label="Zoom do recorte"><div class="checklist"><strong>Confira antes de cortar:</strong><ul><li>Rosto bem visível e nítido</li><li>Foto com boa luz</li><li>Sem óculos escuros ou boné</li><li>Somente a criança está aparecendo na foto</li></ul></div><p class="modal-note">Esta foto será usada exclusivamente para criar o livro. Ela não será compartilhada nem utilizada para outros fins. 🔒</p><div class="modal-actions"><button class="secondary" id="crop-cancel" type="button">Cancelar</button><button class="primary" id="crop-confirm" type="button">Cortar</button></div></div></div>
 <script>
 const STEP_DEFS=[
-{slug:'idade',label:'Faixa etária',need:'escolha uma faixa de idade para continuar',tag:'Cada idade pede uma história'},
-{slug:'foto',label:'Foto',need:'adicione a foto de referência para continuar',tag:'O rosto de quem você ama vira personagem'},
-{slug:'tema',label:'Tema',need:'escolha um tema para continuar',tag:'Escolha o mundo da aventura'},
-{slug:'sentimentos',label:'Sentimento',need:'escolha um sentimento para continuar',tag:'Toda história deixa um sentimento'},
-{slug:'estilo',label:'Estilo',need:'escolha um estilo de ilustração para continuar',tag:'Agora a história ganha cores'},
-{slug:'estrela',label:'A criança',need:'preencha nome, gênero e idade para continuar',tag:'A estrela da história entra em cena'},
-{slug:'objetivo',label:'Objetivo',need:'escolha um objetivo para continuar',tag:'Cada aventura tem um propósito'},
-{slug:'personagens',label:'Personagens',need:'',tag:'A turma da aventura se reúne'},
-{slug:'idioma',label:'Idioma',need:'escolha em que língua o livro será lido',tag:'A língua em que o livro será lido'},
-{slug:'dedicatoria',label:'Toques finais',need:'',tag:'Os toques finais de carinho'},
-{slug:'revelacao',label:'Prévia',need:'a foto é necessária para gerar a prévia',tag:'Uma prévia da mágica'},
-{slug:'revisao',label:'Revisão',need:'informe um WhatsApp válido para continuar',tag:'Os detalhes de seu livro'}
+{slug:'crianca',label:'A criança',need:'preencha nome, idade e foto para continuar',tag:'Tudo sobre quem vai viver a aventura'},
+{slug:'historia',label:'A história',need:'escolha o tema para continuar',tag:'Escolha o mundo da aventura'},
+{slug:'personagens',label:'Personagens',need:'',tag:'Quem mais vai participar'},
+{slug:'personalizacao',label:'Personalização',need:'',tag:'Os toques de carinho'},
+{slug:'finalizar',label:'Finalizar',need:'informe um WhatsApp válido para concluir',tag:'Revise, pague e envie o pedido'}
 ];
 const TOTAL=STEP_DEFS.length;
 const ages=[['0 a 5 anos','Primeiras descobertas e muita imaginação','🌱'],['6 a 9 anos','Aventuras e novas conquistas','🚀'],['10+ anos','Histórias para ir mais longe','🌎']];
@@ -83,7 +76,7 @@ const objectives=[['Guardar esta fase','Uma lembrança que fica para sempre','�
 const languages=[['Português (BR)','O livro será escrito em português do Brasil','🇧🇷']];
 const KINDS=[['Pessoa','🧑'],['Bichinho','🐶'],['Objeto','🧸']];
 let step=0,maxStep=0,category='Todos',query='',savedTimer,saveChain=Promise.resolve(),revision=0;
-let data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'',name:'',gender:'',years:'',personality:'',objective:'',cast:[],language:'Português (BR)',dedicationTitle:'',dedication:'',details:'',whatsapp:''};
+let data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'Cartoon mágico',name:'',gender:'',years:'',personality:'',objective:'Guardar esta fase',cast:[],language:'Português (BR)',dedicationTitle:'',dedication:'',details:'',whatsapp:''};
 let castDraft={kind:'Pessoa',name:'',detail:'',photo:''};
 let shopInfo=null,orderSent=null;
 let boot={step:0,explicit:false};
@@ -94,48 +87,48 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const readAsDataURL=f=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(f)});
 const loadImage=src=>new Promise((resolve,reject)=>{const i=new Image();i.onload=()=>resolve(i);i.onerror=reject;i.src=src});
 const whatsappOk=v=>{const digits=String(v||'').replace(/\D/g,'');return digits.length>=10&&digits.length<=15};
-const stepFromPath=p=>{const m=String(p||'').match(/^\/criar\/([a-z]+)\/?$/);if(!m)return null;const i=STEP_DEFS.findIndex(s=>s.slug===m[1]);return i<0?null:i};
+const LEGACY_STEPS={idade:0,foto:0,estrela:0,tema:1,sentimentos:1,estilo:1,objetivo:3,personagens:2,idioma:3,dedicatoria:3,revelacao:4,revisao:4};
+const stepFromPath=p=>{const m=String(p||'').match(/^\/criar\/([a-z]+)\/?$/);if(!m)return null;const i=STEP_DEFS.findIndex(item=>item.slug===m[1]);return i<0?(LEGACY_STEPS[m[1]]??null):i};
 const kindIcon=kind=>{const found=KINDS.find(k=>k[0]===kind);return found?found[1]:'🧑'};
 const hintText=()=>valid()?'':'Ainda falta: '+STEP_DEFS[step].need+'.';
 function card(item,key){return `<button class="card ${data[key]===item[0]?'selected':''}" data-key="${key}" data-value="${esc(item[0])}" aria-pressed="${data[key]===item[0]}" type="button"><span class="icon">${item[2]}</span>${key==='theme'?`<span class="tag">${esc(item[1])}</span>`:''}<strong>${esc(item[0])}</strong>${key!=='theme'?`<small>${esc(item[1])}</small>`:''}${data[key]===item[0]?'<span class="check">✓</span>':''}</button>`}
 function header(title,sub){return `<h1>${esc(title)}</h1><p>${esc(sub)}</p>`}
 function field(key,label,placeholder='',multi=false){return `<label for="${key}">${esc(label)}</label>${multi?`<textarea id="${key}" data-field="${key}" placeholder="${esc(placeholder)}">${esc(data[key])}</textarea>`:`<input id="${key}" data-field="${key}" maxlength="100" value="${esc(data[key])}" placeholder="${esc(placeholder)}">`}`}
-function allowedYears(){return data.age===ages[0][0]?[0,1,2,3,4,5]:data.age===ages[1][0]?[6,7,8,9]:Array.from({length:9},(_,i)=>i+10)}
-function valid(){switch(step){case 0:return Boolean(data.age);case 1:return Boolean(data.photo);case 2:return Boolean(data.theme);case 3:return Boolean(data.feeling);case 4:return Boolean(data.style);case 5:return Boolean(data.name.trim()&&data.gender&&data.years!==''&&allowedYears().includes(Number(data.years)));case 6:return Boolean(data.objective);case 7:return true;case 8:return Boolean(data.language);case 9:return true;case 10:return Boolean(data.photo);default:return whatsappOk(data.whatsapp)}}
-function stepSummary(i){return [data.age,data.photo?'Foto adicionada':'',data.theme,data.feeling,data.style,data.name,data.objective,(data.cast||[]).length?data.cast.length+' no elenco':'',data.language,(data.dedication||data.dedicationTitle)?'Dedicatória escrita':'',data.photo?'Prévia disponível':'',data.whatsapp][i]||''}
+function allowedYears(){return data.age===ages[0][0]?[0,1,2,3,4,5]:data.age===ages[1][0]?[6,7,8,9]:data.age===ages[2][0]?Array.from({length:9},(_,i)=>i+10):[]}
+function autoFeelingForTheme(theme){const name=String(theme||'');if(['Medo do escuro','Encontrar confiança'].includes(name))return 'Coragem';if(name==='Amizade na escola')return 'Amizade';if(name==='Aprender a compartilhar')return 'Partilha';if(name==='Cuidar da natureza')return 'Cuidar da natureza';const found=topics.find(t=>t[0]===name);const group=found&&found[1];if(['Família','Celebrações','Fé'].includes(group))return 'Amor';if(group==='Esportes')return 'Perseverança';if(group==='Aprendizado')return 'Perseverança';return 'Amizade'}
+function normalizeBriefingDefaults(){data.language='Português (BR)';if(!data.style)data.style='Cartoon mágico';if(!data.objective)data.objective='Guardar esta fase';if(data.theme&&!data.feeling)data.feeling=autoFeelingForTheme(data.theme)}
+function valid(){switch(step){case 0:return Boolean(data.name.trim()&&data.age&&data.photo&&data.years!==''&&allowedYears().includes(Number(data.years)));case 1:return Boolean(data.theme);case 2:return true;case 3:return true;default:return whatsappOk(data.whatsapp)}}
+function stepSummary(i){return [data.name?(data.name+(data.years!==''?' · '+data.years+' anos':'')):(data.age||''),data.theme?data.theme+' · '+(data.style||'Cartoon mágico'):'',(data.cast||[]).length?data.cast.length+' extra'+((data.cast||[]).length===1?'':'s'):'Só a criança',(data.dedication||data.dedicationTitle)?'Dedicatória pronta':'Opcional',data.whatsapp][i]||''}
 function topicCards(){const normalized=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();const found=topics.filter(t=>(category==='Todos'||t[1]===category)&&normalized(t[0]).includes(normalized(query)));return found.length?found.map(i=>card(i,'theme')).join(''):'<div class="empty">Nenhum tema encontrado. Tente outra palavra.</div>'}
 function goTo(target,options={}){const push=options.push!==false;step=Math.max(0,Math.min(Math.round(target),TOTAL-1));maxStep=Math.max(maxStep,step);if(push)history.pushState({step},'','/criar/'+STEP_DEFS[step].slug);save();render();window.scrollTo({top:0,behavior:'smooth'})}
 function render(){
+normalizeBriefingDefaults();
 $('error').innerHTML='';
 $('book-name').textContent=data.name?'O livro de '+data.name:'Seu próximo livro';
 $('progress-bar').style.width=Math.round((step+1)/TOTAL*100)+'%';
 $('mobile-progress').textContent='Passo '+(step+1)+' de '+TOTAL+' · '+STEP_DEFS[step].label;
 $('eyebrow').textContent='PASSO '+(step+1)+' DE '+TOTAL+' · '+STEP_DEFS[step].tag.toUpperCase();
-$('steps').innerHTML=STEP_DEFS.map((s,i)=>`<button class="step ${i===step?'current':i<step?'done':''}" data-step="${i}" ${i>maxStep?'disabled':''} type="button"><span class="num">${i<step?'✓':i+1}</span><span>${esc(s.label)}<small>${esc(stepSummary(i))}</small></span></button>`).join('');
+$('steps').innerHTML=STEP_DEFS.map((item,i)=>`<button class="step ${i===step?'current':i<step?'done':''}" data-step="${i}" ${i>maxStep?'disabled':''} type="button"><span class="num">${i<step?'✓':i+1}</span><span>${esc(item.label)}<small>${esc(stepSummary(i))}</small></span></button>`).join('');
 $('content').innerHTML=stepContent();
 $('actions').style.display=step===TOTAL-1?'none':'flex';
 $('back').disabled=step===0;
 $('next').disabled=!valid();
-$('next').textContent=step===TOTAL-2?'Ver resumo':'Continuar';
+$('next').textContent=step===TOTAL-2?'Ver pedido':'Continuar';
 $('hint').textContent=hintText();
 bind();
-if(step===10)buildPreview();
+if(step===TOTAL-1&&data.photo)buildPreview();
 }
 function stepContent(){
-if(step===0)return header('Para que idade é o livro?','A história, o vocabulário e o tamanho da letra se adaptam à faixa escolhida.')+'<div class="grid">'+ages.map(i=>card(i,'age')).join('')+'</div>';
-if(step===1)return header('A foto de '+(data.name||'quem você ama'),'É dela que nasce o personagem das ilustrações.')+photoBlock();
-if(step===2)return header('Sobre o que será a história?','Todos os temas estão aqui. Use os filtros ou a busca para achar o seu.')+`<input type="search" id="search" aria-label="Buscar tema" placeholder="Buscar um tema (ex: dinossauros)" value="${esc(query)}"><div class="toolbar">${['Todos',...new Set(topics.map(t=>t[1]))].map(c=>`<button class="chip ${category===c?'active':''}" data-category="${c}" type="button">${esc(c)}</button>`).join('')}</div><div class="grid" id="topic-grid">${topicCards()}</div>`;
-if(step===3)return header('Que sentimento a história deve deixar?','É a lição que fica quando a última página vira.')+'<div class="grid">'+feelings.map(i=>card(i,'feeling')).join('')+'</div>';
-if(step===4)return header('Como o livro vai ser desenhado?','Toque na arte para escolher o estilo das ilustrações.')+'<div class="grid">'+styles.map(i=>card(i,'style')).join('')+'</div>';
-if(step===5)return header('Quem é a estrela do livro?','Conte sobre a criança — a história é toda dela.')+field('name','Nome no livro','Ex.: Levi')+`<div class="row"><div><label for="gender">Gênero do personagem</label><select id="gender" data-field="gender"><option value="">Selecione</option>${['Menino','Menina','Prefiro não informar'].map(g=>`<option ${data.gender===g?'selected':''}>${g}</option>`).join('')}</select></div><div><label for="years">Idade em anos</label><select id="years" data-field="years"><option value="">Selecione</option>${allowedYears().map(y=>`<option value="${y}" ${String(y)===data.years?'selected':''}>${y} ${y===1?'ano':'anos'}</option>`).join('')}</select></div></div>`+field('personality','Personalidade e coisas que ama (opcional)','Ex.: adora dinossauros, ri de tudo, é tímida no começo',true);
-if(step===6)return header('Por que você está criando este livro?','Escolha o que mais importa para você — a história fica ainda mais sua.')+'<div class="grid">'+objectives.map(i=>card(i,'objective')).join('')+'</div>';
-return stepContentExtra();
+if(step===0){
+const years=data.age?`<label for="years">Idade em anos</label><select id="years" data-field="years"><option value="">Selecione</option>${allowedYears().map(y=>`<option value="${y}" ${String(y)===data.years?'selected':''}>${y} ${y===1?'ano':'anos'}</option>`).join('')}</select>`:'<label>Idade em anos</label><select disabled><option>Escolha a faixa etária primeiro</option></select>';
+return header('Conte sobre a criança','Só o essencial para personalizar o livro.')+field('name','Nome no livro','Ex.: Levi')+'<h3 class="block-title">Faixa etária</h3><div class="grid">'+ages.map(i=>card(i,'age')).join('')+'</div><div class="row"><div>'+years+'</div><div><label for="gender">Gênero do personagem (opcional)</label><select id="gender" data-field="gender"><option value="">Não informar</option>'+['Menino','Menina','Prefiro não informar'].map(g=>`<option ${data.gender===g?'selected':''}>${g}</option>`).join('')+'</select></div></div>'+field('personality','Personalidade e coisas que ama (opcional)','Ex.: adora dinossauros, ri de tudo, é tímida no começo',true)+'<h3 class="block-title">Foto da criança</h3>'+photoBlock();
 }
-function stepContentExtra(){
-if(step===7)return header('Quem aparece no livro?','Comece pelo personagem principal e depois chame mais alguém.')+castBlock();
-if(step===8)return header('Em que língua o livro será lido?','O texto da história é escrito no idioma escolhido.')+'<div class="grid">'+languages.map(i=>card(i,'language')).join('')+'</div>';
-if(step===9){const suggestion='Para '+(data.name||'você')+', com amor';return header('Uma dedicatória'+(data.name?' para '+data.name:'')+'?','Aparece logo na primeira página. Pode pular, se preferir.')+field('dedicationTitle','Título (opcional)','Ex.: '+suggestion)+`<label for="dedication">Mensagem (opcional)</label><textarea id="dedication" data-field="dedication" maxlength="280" placeholder="Ex.: Que você nunca deixe de sonhar. Com amor, mamãe e papai.">${esc(data.dedication)}</textarea><p class="counter" id="counter">${280-String(data.dedication||'').length} caracteres restantes</p>`+field('details','O que você gostaria de incluir? (opcional)','Uma cidade, um objeto favorito ou um momento importante.',true)}
-if(step===10)return header('Veja como '+(data.name||'a criança')+' vira personagem','Arraste a linha para comparar a foto com a prévia.')+revealBlock();
+if(step===1){
+const automatic=data.theme?autoFeelingForTheme(data.theme):'será escolhido automaticamente';
+return header('Escolha a história','Escolha o tema. O restante nós simplificamos para você.')+`<input type="search" id="search" aria-label="Buscar tema" placeholder="Buscar um tema (ex: dinossauros)" value="${esc(query)}"><div class="toolbar">${['Todos',...new Set(topics.map(t=>t[1]))].map(c=>`<button class="chip ${category===c?'active':''}" data-category="${c}" type="button">${esc(c)}</button>`).join('')}</div><div class="grid" id="topic-grid">${topicCards()}</div><div class="block"><h3>Visual do livro</h3><p class="counter">Usamos <strong>Cartoon mágico</strong> por padrão. Troque somente se quiser.</p><label for="style">Estilo das ilustrações</label><select id="style" data-field="style">${styles.map(item=>`<option value="${esc(item[0])}" ${data.style===item[0]?'selected':''}>${esc(item[0])}</option>`).join('')}</select><p class="counter">Valor trabalhado automaticamente pela história: <strong>${esc(automatic)}</strong>.</p></div>`;
+}
+if(step===2)return header('Quem mais aparece no livro?','Adicionar familiares, amigos, pets ou objetos é opcional. Se quiser só a criança, toque em Continuar.')+castBlock();
+if(step===3){const suggestion='Para '+(data.name||'você')+', com amor';return header('Dê o toque final','Tudo aqui é opcional. Você pode continuar sem preencher.')+field('dedicationTitle','Título da dedicatória (opcional)','Ex.: '+suggestion)+`<label for="dedication">Mensagem (opcional)</label><textarea id="dedication" data-field="dedication" maxlength="280" placeholder="Ex.: Que você nunca deixe de sonhar. Com amor, mamãe e papai.">${esc(data.dedication)}</textarea><p class="counter" id="counter">${280-String(data.dedication||'').length} caracteres restantes</p>`+field('details','Algo especial para incluir? (opcional)','Uma cidade, um brinquedo favorito ou um momento importante.',true)}
 return reviewBlock();
 }
 function photoBlock(){
@@ -146,7 +139,7 @@ if(!data.photo)return notice('Adicione a foto na etapa <strong>Foto</strong> par
 return `<div class="reveal" id="reveal"><img class="reveal-img" id="real-photo" src="${data.photo}" alt="Foto real"><img class="reveal-img reveal-top" id="book-photo" src="${data.photo}" alt="Prévia do personagem"><span class="reveal-tag left">Foto real</span><span class="reveal-tag right">No livro</span><input type="range" id="reveal-range" min="0" max="100" value="50" aria-label="Arraste para comparar a foto com o personagem"></div><p class="counter" id="preview-status">Montando a prévia…</p>${notice('Prévia ilustrativa gerada no seu navegador. As ilustrações finais são criadas página a página com IA depois do pedido.')}`;
 }
 function castBlock(){
-const main=`<article class="cast-card"><span class="cast-icon">⭐</span><div><strong>${esc(data.name||'Personagem principal')}</strong><small>Principal${data.years!==''&&data.years!==undefined?' · '+esc(String(data.years))+' anos':''}${data.age?' · '+esc(data.age):''}</small></div><button class="quiet" data-step="5" type="button">Editar</button></article>`;
+const main=`<article class="cast-card"><span class="cast-icon">⭐</span><div><strong>${esc(data.name||'Personagem principal')}</strong><small>Principal${data.years!==''&&data.years!==undefined?' · '+esc(String(data.years))+' anos':''}${data.age?' · '+esc(data.age):''}</small></div><button class="quiet" data-step="0" type="button">Editar</button></article>`;
 const cast=data.cast||[];
 const list=cast.length?cast.map((c,i)=>`<article class="cast-card">${c.photo?`<img class="cast-photo" src="${c.photo}" alt="">`:`<span class="cast-icon">${kindIcon(c.kind)}</span>`}<div><strong>${esc(c.name)}</strong><small>${esc(c.kind)}${c.detail?' · '+esc(c.detail):''}</small></div><button class="quiet" data-remove-cast="${i}" type="button">Remover</button></article>`).join(''):'<div class="empty">Ainda não há mais ninguém. O livro pode ter só a criança.</div>';
 const detailLabel=castDraft.kind==='Pessoa'?'Relação com a criança':castDraft.kind==='Bichinho'?'Que tipo de bichinho?':'Que tipo de objeto?';
@@ -179,16 +172,13 @@ const castNames=(data.cast||[]).map(c=>c.name+(c.kind?' · '+c.kind:'')+(c.detai
 const dedication=(data.dedicationTitle?data.dedicationTitle+' — ':'')+(data.dedication||'Sem dedicatória');
 const characters=[{name:data.name||'Personagem principal',kind:'Principal',detail:data.years!==''&&data.years!==undefined?data.years+' anos':'',photo:data.photo||''},...(data.cast||[])];
 const characterCards=characters.map((c,i)=>`<article class="cast-card">${c.photo?`<img class="cast-photo" src="${c.photo}" alt="Foto de ${esc(c.name)}">`:`<span class="cast-icon">${i===0?'⭐':kindIcon(c.kind)}</span>`}<div><strong>${esc(c.name)}</strong><small>${esc(i===0?'Personagem principal':c.kind||'Personagem')}${c.detail?' · '+esc(c.detail):''}</small></div></article>`).join('');
-const blocks=[
-['O livro',[['Idade',data.age],['Tema',data.theme],['Sentimento',data.feeling],['Estilo',data.style],['Idioma',data.language]],2],
-['A estrela',[['Nome',data.name],['Gênero',data.gender],['Idade',data.years===''?'':data.years+' anos'],['Personalidade',data.personality||'Não informada']],5],
-['Toques finais',[['Objetivo',data.objective||'Não informado'],['Dedicatória',dedication],['Detalhes',data.details||'Sem detalhes adicionais']],9]
-];
 const photo=data.photo?`<img class="photo" src="${data.photo}" alt="Referência da criança">`:'';
-const body=blocks.map(([title,rows,back])=>`<div class="block"><h3>${esc(title)}<button class="quiet" data-step="${back}" type="button">Editar</button></h3><dl>${rows.map(([term,value])=>`<dt>${esc(term)}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>`).join('');
-const charactersBlock=`<div class="block"><h3>Personagens que vão aparecer<button class="quiet" data-step="7" type="button">Editar</button></h3><p class="counter">Confira todos os personagens incluídos no livro.</p><div class="cast-list">${characterCards}</div><p class="counter"><strong>Extras:</strong> ${esc(castNames)}</p></div>`;
-const whatsappBlock=`<label for="whatsapp">Seu WhatsApp</label><input id="whatsapp" data-field="whatsapp" type="tel" maxlength="25" autocomplete="tel" inputmode="tel" placeholder="Ex.: (85) 99999-9999" value="${esc(data.whatsapp)}"><p class="counter">Usaremos este número para falar com você sobre o pedido.</p><p class="counter" id="whatsapp-status">${whatsappOk(data.whatsapp)?'WhatsApp válido.':'Informe um WhatsApp com DDD para enviar o pedido.'}</p>`;
-return header('O livro de '+(data.name||'sua criança')+' está quase pronto!','Confira e ajuste o que quiser antes de continuar.')+`<div class="summary">${photo}<dl><dt>Nome</dt><dd>${esc(data.name)}</dd><dt>Idade</dt><dd>${esc(data.years===''?'':data.years+' anos')}</dd><dt>Tema</dt><dd>${esc(data.theme)}</dd></dl></div>`+charactersBlock+body+whatsappBlock+orderBlock()+notice('<strong>Pronto.</strong> Ao enviar o pedido, suas respostas, a foto principal e os personagens escolhidos chegam para a loja junto com o link privado do pedido.');
+const summary=`<div class="summary">${photo}<dl><dt>Nome</dt><dd>${esc(data.name)}</dd><dt>Idade</dt><dd>${esc(data.years===''?'':data.years+' anos')}</dd><dt>Tema</dt><dd>${esc(data.theme)}</dd><dt>Estilo</dt><dd>${esc(data.style)}</dd></dl><div class="toolbar"><button class="quiet" data-step="0" type="button">Editar criança</button><button class="quiet" data-step="1" type="button">Editar história</button></div></div>`;
+const preview=`<div class="block"><h3>Prévia do personagem</h3>${revealBlock()}</div>`;
+const charactersBlock=`<div class="block"><h3>Personagens que vão aparecer<button class="quiet" data-step="2" type="button">Editar</button></h3><div class="cast-list">${characterCards}</div><p class="counter"><strong>Extras:</strong> ${esc(castNames)}</p></div>`;
+const personal=`<div class="block"><h3>Personalização<button class="quiet" data-step="3" type="button">Editar</button></h3><dl><dt>Dedicatória</dt><dd>${esc(dedication)}</dd><dt>Detalhes</dt><dd>${esc(data.details||'Sem detalhes adicionais')}</dd></dl></div>`;
+const whatsappBlock=`<label for="whatsapp">Seu WhatsApp</label><input id="whatsapp" data-field="whatsapp" type="tel" maxlength="25" autocomplete="tel" inputmode="tel" placeholder="Ex.: (85) 99999-9999" value="${esc(data.whatsapp)}"><p class="counter">Usaremos este número para identificar e continuar seu pedido.</p><p class="counter" id="whatsapp-status">${whatsappOk(data.whatsapp)?'WhatsApp válido.':'Informe um WhatsApp com DDD para concluir.'}</p>`;
+return header('Seu livro está pronto para finalizar','Confira a prévia, os personagens e finalize pelo Pix ou WhatsApp.')+summary+preview+charactersBlock+personal+whatsappBlock+orderBlock()+notice('<strong>Pronto.</strong> São só 5 passos. Ao finalizar, seu briefing completo e as fotos chegam organizados para a produção.');
 }
 const notice=html=>`<div class="notice">${html}</div>`;
 function error(message){$('error').innerHTML=`<div class="error">${esc(message)}</div>`}
@@ -206,9 +196,9 @@ function buildPreview(){const source=data.photo;const status=$('preview-status')
 function save(){revision++;clearTimeout(savedTimer);savedTimer=setTimeout(()=>persist(),700)}
 function persist(){const snapshot={data:{...data,cast:(data.cast||[]).map(c=>({...c}))},step,revision};saveChain=saveChain.catch(()=>{}).then(async()=>{try{$('status').textContent='Salvando briefing…';const r=await fetch('/api/draft',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)});if(!r.ok)throw Error();$('status').textContent='Briefing salvo'}catch(e){$('status').textContent='Não foi possível salvar';error('Suas escolhas continuam nesta tela, mas não foram salvas. Tente novamente.');throw e}});return saveChain}
 function markInvalid(){const ok=valid();$('next').disabled=!ok;$('hint').textContent=hintText()}
-function bindTopics(){document.querySelectorAll('#topic-grid [data-key]').forEach(b=>b.onclick=()=>{data.theme=b.dataset.value;save();render()})}
+function bindTopics(){document.querySelectorAll('#topic-grid [data-key]').forEach(b=>b.onclick=()=>{data.theme=b.dataset.value;data.feeling=autoFeelingForTheme(data.theme);save();render()})}
 function bind(){
-document.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const key=b.dataset.key;data[key]=b.dataset.value;if(key==='age'&&!allowedYears().includes(Number(data.years)))data.years='';save();render()});
+document.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>{const key=b.dataset.key;data[key]=b.dataset.value;if(key==='age'&&!allowedYears().includes(Number(data.years)))data.years='';if(key==='theme')data.feeling=autoFeelingForTheme(data.theme);save();render()});
 document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>goTo(Number(b.dataset.step)));
 document.querySelectorAll('[data-category]').forEach(b=>b.onclick=()=>{category=b.dataset.category;render()});
 document.querySelectorAll('[data-field]').forEach(el=>el.oninput=()=>{data[el.dataset.field]=el.value;if(el.id==='dedication')$('counter').textContent=(280-el.value.length)+' caracteres restantes';if(el.id==='whatsapp')$('whatsapp-status').textContent=whatsappOk(el.value)?'WhatsApp válido.':'Informe um WhatsApp com DDD para enviar o pedido.';save();markInvalid()});
@@ -238,7 +228,7 @@ if(payPix)payPix.onclick=copyPixValue;
 }
 $('next').onclick=()=>{if(!valid())return;goTo(step+1)};
 $('back').onclick=()=>{if(step>0)goTo(step-1)};
-$('restart').onclick=()=>{if(!confirm('Começar um novo livro? O briefing atual será substituído.'))return;const whatsapp=data.whatsapp;data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'',name:'',gender:'',years:'',personality:'',objective:'',cast:[],language:'Português (BR)',dedicationTitle:'',dedication:'',details:'',whatsapp};castDraft={kind:'Pessoa',name:'',detail:'',photo:''};step=0;maxStep=0;category='Todos';query='';history.pushState({step:0},'','/criar/idade');save();render()};
+$('restart').onclick=()=>{if(!confirm('Começar um novo livro? O briefing atual será substituído.'))return;const whatsapp=data.whatsapp;data={age:'',photo:'',outfit:'nova',theme:'',feeling:'',style:'Cartoon mágico',name:'',gender:'',years:'',personality:'',objective:'Guardar esta fase',cast:[],language:'Português (BR)',dedicationTitle:'',dedication:'',details:'',whatsapp};castDraft={kind:'Pessoa',name:'',detail:'',photo:''};step=0;maxStep=0;category='Todos';query='';history.pushState({step:0},'','/criar/crianca');save();render()};
 const cropCanvas=$('crop-canvas');
 cropCanvas.addEventListener('pointerdown',e=>{if(!crop.img)return;crop.dragging=true;crop.lastX=e.clientX;crop.lastY=e.clientY;cropCanvas.setPointerCapture(e.pointerId)});
 cropCanvas.addEventListener('pointermove',e=>{if(!crop.dragging)return;const rect=cropCanvas.getBoundingClientRect();const scale=cropCanvas.width/rect.width;crop.x+=(e.clientX-crop.lastX)*scale;crop.y+=(e.clientY-crop.lastY)*scale;crop.lastX=e.clientX;crop.lastY=e.clientY;drawCrop()});
@@ -251,7 +241,7 @@ $('crop-modal').addEventListener('click',e=>{if(e.target===$('crop-modal'))close
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('crop-modal').hidden)closeCrop()});
 window.addEventListener('popstate',()=>{const target=stepFromPath(location.pathname);if(target===null||target===step)return;step=target;maxStep=Math.max(maxStep,step);render()});
 render();
-fetch('/api/draft').then(async r=>{if(!r.ok)throw Error();const d=await r.json();if(d&&d.data){data={...data,...d.data};data.language='Português (BR)';if(!Array.isArray(data.cast))data.cast=[];if(!data.outfit)data.outfit='nova';const saved=Math.min(Math.max(Math.round(Number(d.step)||0),0),TOTAL-1);if(boot.explicit)maxStep=Math.max(maxStep,saved);else{step=saved;maxStep=Math.max(maxStep,saved)}render();$('status').textContent='Seu briefing foi recuperado'}}).catch(()=>{$('status').textContent='O salvamento está indisponível'});
+fetch('/api/draft').then(async r=>{if(!r.ok)throw Error();const d=await r.json();if(d&&d.data){data={...data,...d.data};if(!Array.isArray(data.cast))data.cast=[];if(!data.outfit)data.outfit='nova';normalizeBriefingDefaults();const rawSaved=Math.round(Number(d.step)||0);const saved=rawSaved>4?4:Math.min(Math.max(rawSaved,0),TOTAL-1);if(boot.explicit)maxStep=Math.max(maxStep,saved);else{step=saved;maxStep=Math.max(maxStep,saved)}render();$('status').textContent='Seu briefing foi recuperado'}}).catch(()=>{$('status').textContent='O salvamento está indisponível'});
 fetch('/api/shop').then(async response=>{if(!response.ok)throw Error();const payload=await response.json();if(payload){shopInfo=payload;if(step===TOTAL-1)render()}}).catch(()=>{});
 fetch('/api/visits').then(async response=>{if(!response.ok)throw Error();const stats=await response.json();const el=$('visit-count');if(el)el.textContent=(Number(stats.total)||0).toLocaleString('pt-BR')+' visita'+((Number(stats.total)||0)===1?'':'s')}).catch(()=>{const el=$('visit-count');if(el)el.textContent='visitas'});
 if(document.modelContext?.registerTool){try{document.modelContext.registerTool({name:'read_book_brief',description:'Ler as escolhas do briefing sem acessar a foto de referência.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:async()=>({age:data.age,theme:data.theme,feeling:data.feeling,style:data.style,language:data.language,name:data.name,cast:(data.cast||[]).map(c=>c.name),step:STEP_DEFS[step].label})})}catch{}}

@@ -1,8 +1,9 @@
-const STEP_SLUGS=['idade','foto','tema','sentimentos','estilo','estrela','objetivo','personagens','idioma','dedicatoria','revelacao','revisao'];
+const STEP_SLUGS=['crianca','historia','personagens','personalizacao','finalizar'];
 const LAST_STEP=STEP_SLUGS.length-1;
 const BOOT_TAG='<script type="application/json" id="boot">{"step":0,"explicit":false}</script>';
 const MAX_BODY=14000000;
-const ROUTES=new Map([['/',0],['/criar',0],...STEP_SLUGS.map((slug,index)=>['/criar/'+slug,index])]);
+const LEGACY_ROUTES={idade:0,foto:0,estrela:0,tema:1,sentimentos:1,estilo:1,objetivo:3,personagens:2,idioma:3,dedicatoria:3,revelacao:4,revisao:4};
+const ROUTES=new Map([['/',0],['/criar',0],...STEP_SLUGS.map((slug,index)=>['/criar/'+slug,index]),...Object.entries(LEGACY_ROUTES).map(([slug,index])=>['/criar/'+slug,index])]);
 const json=(v,status=200,extra={})=>new Response(JSON.stringify(v),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...extra}});
 const photoOk=(value,max)=>!value||(typeof value==='string'&&value.length<=max&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value));
 const castOk=cast=>cast===undefined||(Array.isArray(cast)&&cast.length<=6&&cast.every(item=>Boolean(item)&&typeof item.name==='string'&&item.name.length<=60&&['Pessoa','Bichinho','Objeto'].includes(item.kind)&&typeof item.detail==='string'&&item.detail.length<=60&&photoOk(item.photo,2000000)));
@@ -15,7 +16,7 @@ try{
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
-if(request.method==='GET'){const object=await env.BUCKET.get(key);if(!object)return json(null,200,cookie);const saved=await object.json();if(saved&&saved.data)saved.data.language='Português (BR)';return json(saved,200,cookie)}
+if(request.method==='GET'){const object=await env.BUCKET.get(key);if(!object)return json(null,200,cookie);const saved=await object.json();if(saved&&saved.data){saved.data.language='Português (BR)';if(!saved.data.style)saved.data.style='Cartoon mágico';if(!saved.data.objective)saved.data.objective='Guardar esta fase';if(saved.data.theme&&!saved.data.feeling)saved.data.feeling='Amizade';if(Number(saved.step)>LAST_STEP)saved.step=LAST_STEP}return json(saved,200,cookie)}
 if(request.method==='PUT'){
 if(request.headers.get('origin')!==url.origin)return json({error:'Origem inválida'},403);
 if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415);
@@ -24,6 +25,9 @@ if(raw.length>MAX_BODY)return json({error:'Arquivo muito grande'},413);
 let body;try{body=JSON.parse(raw)}catch{return json({error:'Dados inválidos'},400)}
 if(!draftOk(body))return json({error:'Dados inválidos'},400);
 body.data.language='Português (BR)';
+if(!body.data.style)body.data.style='Cartoon mágico';
+if(!body.data.objective)body.data.objective='Guardar esta fase';
+if(body.data.theme&&!body.data.feeling)body.data.feeling='Amizade';
 body.updatedAt=new Date().toISOString();
 await env.BUCKET.put(key,JSON.stringify(body),{httpMetadata:{contentType:'application/json'}});
 await saveDraftIndex(env,token,body);
@@ -84,6 +88,9 @@ if(!draftObject)return json({error:'Preencha o formulário antes de enviar o ped
 const draft=await draftObject.json();
 const briefing=(draft&&draft.data)||{};
 briefing.language='Português (BR)';
+if(!briefing.style)briefing.style='Cartoon mágico';
+if(!briefing.objective)briefing.objective='Guardar esta fase';
+if(briefing.theme&&!briefing.feeling)briefing.feeling='Amizade';
 const missing=requiredBriefingFields(briefing);
 if(missing.length)return json({error:'Faltam informações: '+missing.join(', ')+'.'},400,cookie);
 const customerWhatsapp=cleanText(briefing.whatsapp).replace(/[^0-9]/g,'');if(customerWhatsapp.length<10||customerWhatsapp.length>15)return json({error:'Informe um WhatsApp válido com DDD para enviar o pedido.'},400,cookie);

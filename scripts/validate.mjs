@@ -1,22 +1,24 @@
 import assert from 'node:assert/strict';import {readFile}from'node:fs/promises';import{Script}from'node:vm';
 const html=await readFile('worker/page.html','utf8');const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];new Script(script);const app=await import('../dist/server/index.js');assert.equal(typeof app.default.fetch,'function');
 assert(html.includes('<script type="application/json" id="boot">'),'marcador de boot ausente na página');
-const routes={'/criar/idade':0,'/criar/foto':1,'/criar/tema':2,'/criar/sentimentos':3,'/criar/estilo':4,'/criar/estrela':5,'/criar/objetivo':6,'/criar/personagens':7,'/criar/idioma':8,'/criar/dedicatoria':9,'/criar/revelacao':10,'/criar/revisao':11};
+const routes={'/criar/crianca':0,'/criar/historia':1,'/criar/personagens':2,'/criar/personalizacao':3,'/criar/finalizar':4};
+const legacyRoutes={'/criar/idade':0,'/criar/foto':0,'/criar/estrela':0,'/criar/tema':1,'/criar/sentimentos':1,'/criar/estilo':1,'/criar/objetivo':3,'/criar/idioma':3,'/criar/dedicatoria':3,'/criar/revelacao':4,'/criar/revisao':4};
 const slugs=[...html.matchAll(/slug:'([a-z]+)'/g)].map(match=>match[1]);
-assert.deepEqual(slugs,Object.keys(routes).map(path=>path.replace('/criar/','')),'slugs do cliente e do servidor estão dessincronizados');
+assert.deepEqual(slugs,Object.keys(routes).map(path=>path.replace('/criar/','')),'slugs do cliente e do servidor estão dessincronizados');assert.equal(slugs.length,5,'funil deve ter 5 etapas');
 const items=new Map();const env={SHOP_NAME:'FC Livros Mágicos',WHATSAPP_NUMBER:'5511999999999',PRICE_LABEL:'R$ 49,90',PIX_KEY:'pix@exemplo.com',PIX_COPY_PASTE:'000201PIXTESTE123456789',ORDER_SECRET:'segredo-de-teste',ADMIN_TOKEN:'token-de-teste',BUCKET:{get:async key=>items.has(key)?{json:async()=>JSON.parse(items.get(key))}:null,put:async(key,value)=>items.set(key,value),delete:async key=>items.delete(key)}};
-const page=await app.default.fetch(new Request('https://example.test/criar/idade'),env);assert.equal(page.status,200);
-const pageHtml=await page.text();assert(pageHtml.includes('Para que idade'),'etapa de idade ausente');assert(pageHtml.includes('visit-count'),'contador de visitas ausente do rodapé');const firstVisitStats=JSON.parse(items.get('analytics/visits.json'));assert.equal(firstVisitStats.total,1,'primeira sessão conta uma visita');assert(pageHtml.includes("const languages=[['Português (BR)'")&&!pageHtml.includes("['English")&&!pageHtml.includes("['Español"),'somente Português (BR) disponível');assert(pageHtml.includes('Passo'),'indicador de passos ausente');assert(pageHtml.includes('crop-canvas')&&pageHtml.includes('reveal-range'),'crop ou prévia ausentes');
+const page=await app.default.fetch(new Request('https://example.test/criar/crianca'),env);assert.equal(page.status,200);
+const pageHtml=await page.text();assert(pageHtml.includes('Conte sobre a criança'),'etapa Criança ausente');assert(pageHtml.includes("slug:'crianca'")&&pageHtml.includes("slug:'finalizar'")&&!pageHtml.includes("slug:'sentimentos'")&&!pageHtml.includes("slug:'idioma'"),'somente 5 etapas no funil');assert(pageHtml.includes('visit-count'),'contador de visitas ausente do rodapé');const firstVisitStats=JSON.parse(items.get('analytics/visits.json'));assert.equal(firstVisitStats.total,1,'primeira sessão conta uma visita');assert(pageHtml.includes("const languages=[['Português (BR)'")&&!pageHtml.includes("['English")&&!pageHtml.includes("['Español"),'somente Português (BR) disponível');assert(pageHtml.includes('Passo'),'indicador de passos ausente');assert(pageHtml.includes('crop-canvas')&&pageHtml.includes('reveal-range'),'crop ou prévia ausentes');
 const cookie=page.headers.get('set-cookie').split(';')[0];
-await app.default.fetch(new Request('https://example.test/criar/tema',{headers:{Cookie:cookie}}),env);assert.equal(JSON.parse(items.get('analytics/visits.json')).total,1,'mesma sessão não duplica visita');const visitApi=await (await app.default.fetch(new Request('https://example.test/api/visits',{headers:{Cookie:cookie}}),env)).json();assert.equal(visitApi.total,1,'API pública de visitas');
+await app.default.fetch(new Request('https://example.test/criar/historia',{headers:{Cookie:cookie}}),env);assert.equal(JSON.parse(items.get('analytics/visits.json')).total,1,'mesma sessão não duplica visita');const visitApi=await (await app.default.fetch(new Request('https://example.test/api/visits',{headers:{Cookie:cookie}}),env)).json();assert.equal(visitApi.total,1,'API pública de visitas');
 for(const [path,step] of Object.entries(routes)){const response=await app.default.fetch(new Request('https://example.test'+path),env);assert.equal(response.status,200,'rota '+path);const boot=JSON.parse((await response.text()).match(/id="boot">([^<]+)</)[1]);assert.equal(boot.step,step,'passo inicial de '+path);assert.equal(boot.explicit,true,'deep link de '+path)}
+for(const [path,step] of Object.entries(legacyRoutes)){const response=await app.default.fetch(new Request('https://example.test'+path),env);assert.equal(response.status,200,'rota legada '+path);const boot=JSON.parse((await response.text()).match(/id="boot">([^<]+)</)[1]);assert.equal(boot.step,step,'compatibilidade de '+path)}
 const rootBoot=JSON.parse((await (await app.default.fetch(new Request('https://example.test/'),env)).text()).match(/id="boot">([^<]+)</)[1]);assert.equal(rootBoot.explicit,false,'a raiz não deve forçar um passo');
 assert.equal((await app.default.fetch(new Request('https://example.test/criar/qualquer'),env)).status,200,'rota desconhecida ainda serve a aplicação');
 assert.equal((await app.default.fetch(new Request('https://example.test/criar/foto',{method:'POST'}),env)).status,405);
-assert.equal((await app.default.fetch(new Request('https://example.test/criar/tema',{method:'HEAD'}),env)).status,200);
+assert.equal((await app.default.fetch(new Request('https://example.test/criar/historia',{method:'HEAD'}),env)).status,200);
 assert.equal((await app.default.fetch(new Request('https://example.test/api/desconhecido'),env)).status,404);
 const headers={'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie};
-const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
+const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:4};
 await send({method:'PUT',headers,body:JSON.stringify(draft)},200,'salvamento do briefing');
 const get=await app.default.fetch(new Request('https://example.test/api/draft',{headers:{Cookie:cookie}}),env);const savedDraft=await get.json();assert.equal(savedDraft.data.language,'Português (BR)','briefing salvo em Português (BR)');
 const trackedDrafts=JSON.parse(items.get('briefings/index.json'));assert.equal(trackedDrafts.length,1,'rascunho entrou no índice de carrinhos');assert.equal(trackedDrafts[0].progress,100,'progresso do rascunho registrado');
@@ -25,12 +27,12 @@ await send({method:'DELETE',headers},405,'método não permitido no briefing');
 await send({method:'PUT',headers:{...headers,Origin:'https://evil.test'},body:JSON.stringify(draft)},403,'origem estrangeira');
 await send({method:'PUT',headers:{...headers,'Content-Type':'text/plain'},body:JSON.stringify(draft)},415,'formato inválido');
 await send({method:'PUT',headers,body:'{quebrado'},400,'JSON inválido');
-await send({method:'PUT',headers,body:JSON.stringify({...draft,step:12})},400,'passo fora do intervalo');
-await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,cast:[{kind:'Robô',name:'X',detail:'',photo:''}]},step:7})},400,'tipo de personagem inválido');
-await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,photo:'data:text/html;base64,AAAA'},step:1})},400,'foto com formato inválido');
+await send({method:'PUT',headers,body:JSON.stringify({...draft,step:5})},400,'passo fora do intervalo');
+await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,cast:[{kind:'Robô',name:'X',detail:'',photo:''}]},step:2})},400,'tipo de personagem inválido');
+await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,photo:'data:text/html;base64,AAAA'},step:0})},400,'foto com formato inválido');
 // ---- Pedido enviado para o WhatsApp da loja ----
 const JPG='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
-const complete={data:{age:'0 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauros',feeling:'Coragem',style:'Aquarela',name:'Levi',gender:'Menino',years:'5',personality:'Curioso',objective:'Guardar esta fase',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:JPG}],language:'Português (BR)',dedicationTitle:'Para Levi',dedication:'Com amor',details:'A praia',whatsapp:'(85) 99999-9999'},step:11};
+const complete={data:{age:'0 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauros',feeling:'Coragem',style:'Aquarela',name:'Levi',gender:'Menino',years:'5',personality:'Curioso',objective:'Guardar esta fase',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:JPG}],language:'Português (BR)',dedicationTitle:'Para Levi',dedication:'Com amor',details:'A praia',whatsapp:'(85) 99999-9999'},step:4};
 await send({method:'PUT',headers,body:JSON.stringify(complete)},200,'briefing completo');
 const orderResponse=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(orderResponse.status,200,'criação do pedido');
 const order=await orderResponse.json();
@@ -55,7 +57,7 @@ const autoResponse=await app.default.fetch(new Request('https://example.test/api
 globalThis.fetch=realFetch;
 const autoOrder=await autoResponse.json();
 assert.equal(autoOrder.notified.sent,true,'envio automático pelo Cloud API');assert.equal(calls.length,5,'fotos dos personagens e mensagem enviadas');assert(calls[0].url.includes('/123456/media')&&calls[2].url.includes('/123456/media'),'uploads das fotos principal e do elenco');assert(calls[4].options.body.includes('Pedido '+autoOrder.code)&&calls[4].options.body.includes('Mel'),'texto com personagens enviado');
-items.set('briefings/index.json',JSON.stringify([{token:'a'.repeat(64),cartId:'CART000001',createdAt:'2026-09-29T10:00:00.000Z',updatedAt:'2026-09-29T10:30:00.000Z',step:10,progress:92,name:'Ana',whatsapp:'(85) 98888-7777',theme:'Fadas',hasPhoto:true}]));
+items.set('briefings/index.json',JSON.stringify([{token:'a'.repeat(64),cartId:'CART000001',createdAt:'2026-09-29T10:00:00.000Z',updatedAt:'2026-09-29T10:30:00.000Z',step:3,progress:80,name:'Ana',whatsapp:'(85) 98888-7777',theme:'Fadas',hasPhoto:true}]));
 const visitsBeforeAdmin=JSON.parse(items.get('analytics/visits.json')).total;
 const painel=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste'),env);assert.equal(painel.status,200,'painel');const painelHtml=await painel.text();assert.equal(JSON.parse(items.get('analytics/visits.json')).total,visitsBeforeAdmin,'painel não conta como visita pública');
 assert(painelHtml.includes(order.code)&&painelHtml.includes(autoOrder.code),'pedidos listados');
@@ -65,7 +67,7 @@ assert(painelHtml.includes('/pedido/'+order.code+'?t=token-de-teste'),'painel ab
 assert(painelHtml.includes('Dashboard de pedidos')&&painelHtml.includes('admin-search')&&painelHtml.includes('admin-status-filter'),'dashboard profissional com busca e filtros');
 assert(painelHtml.includes('Pedidos')&&painelHtml.includes('Novos')&&painelHtml.includes('Em produção')&&painelHtml.includes('Pagos')&&painelHtml.includes('Enviados'),'cards de métricas do painel');assert(painelHtml.includes('Visitas')&&painelHtml.includes('Hoje'),'métricas de visitas no dashboard');
 assert(painelHtml.includes('Configurações')&&painelHtml.includes('Abrir site'),'navegação profissional do admin');
-assert(painelHtml.includes('Carrinhos abandonados')&&painelHtml.includes('CART000001')&&painelHtml.includes('Ana')&&painelHtml.includes('92% preenchido'),'carrinho abandonado visível no admin');assert(painelHtml.includes('Recuperar no WhatsApp'),'ação de recuperação disponível');
+assert(painelHtml.includes('Carrinhos abandonados')&&painelHtml.includes('CART000001')&&painelHtml.includes('Ana')&&painelHtml.includes('80% preenchido'),'carrinho abandonado visível no admin');assert(painelHtml.includes('Recuperar no WhatsApp'),'ação de recuperação disponível');
 const configPage=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&view=config'),env);assert.equal(configPage.status,200,'página de configurações');const configHtml=await configPage.text();
 for(const block of ['Configurações','Dados da loja','Integrações e segurança','Armazenamento persistente','WhatsApp Cloud API','Segurança'])assert(configHtml.includes(block),'configurações sem: '+block);
 const settingsGet=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste'),env);assert.equal(settingsGet.status,200,'leitura das configurações');
