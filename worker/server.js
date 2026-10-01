@@ -13,6 +13,46 @@ export default {async fetch(request,env){
 const url=new URL(request.url);const match=(request.headers.get('cookie')||'').match(/(?:^|;\s*)fc_session=([a-f0-9]{64})(?:;|$)/);let token=match?.[1];let cookie={};
 if(!token){token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');cookie={'set-cookie':`fc_session=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`}}
 try{
+if(url.pathname==='/quiz'||url.pathname==='/quiz/'){
+if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
+if(request.method==='GET'){await registerVisit(env,token)}
+return new Response(request.method==='HEAD'?null:QUIZ_HTML,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'same-origin','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",...cookie}})}
+if(url.pathname==='/api/preview'){
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
+if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
+const raw=await request.text();if(raw.length>9000000)return json({error:'A foto ficou grande demais. Escolha outra imagem.'},413,cookie);
+let body;try{body=JSON.parse(raw)}catch{return json({error:'Dados inválidos'},400,cookie)}
+const typeMap={casal:'casal romântico',familia:'família',infantil:'retrato infantil',pet:'retrato de pet',caricatura:'caricatura digital',homenagem:'homenagem afetiva'};
+const styleMap={studio:'estúdio profissional com fundo clean e iluminação suave',praia:'praia bonita com luz natural',jeans:'ensaio moderno com roupas jeans elegantes e camiseta clara',cartoon:'arte ilustrada moderna, sofisticada e bem acabada'};
+const typeLabel=typeMap[body.type],styleLabel=styleMap[body.style];
+if(!typeLabel||!styleLabel||!photoOk(body.photo,8000000))return json({error:'Escolha uma foto, um tipo e um estilo válidos.'},400,cookie);
+const settings=await resolvedOrderSettings(env);
+const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
+const waText='Olá! Eu gerei uma prévia no site da FC Artes Digitais. Tipo: '+typeLabel+'. Estilo: '+styleLabel+'. Quero finalizar meu pedido.';
+const waLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent(waText):'';
+const provider=cleanText(env.AI_PROVIDER).toLowerCase();
+const apiKey=cleanText(env.OPENAI_API_KEY)||(provider==='openai'?cleanText(env.AI_API_KEY):'');
+if(!apiKey)return json({preview:body.photo,demo:true,waLink},200,cookie);
+const matchPhoto=body.photo.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+if(!matchPhoto)return json({error:'Formato da foto não suportado.'},400,cookie);
+const bytes=Uint8Array.from(atob(matchPhoto[2]),c=>c.charCodeAt(0));
+const prompt='Use a imagem enviada exclusivamente como referência da identidade da pessoa ou pet. Crie uma prévia profissional de '+typeLabel+' no estilo '+styleLabel+'. Preserve ao máximo rosto, idade aparente, cabelo, tom de pele, formato do rosto e características reais. Composição elegante, iluminação profissional, aparência natural e comercial. Não adicionar texto, logotipo ou marca d’água. Manter conteúdo apropriado para todas as idades, sem nudez ou conteúdo sexual.';
+const form=new FormData();
+form.append('model','gpt-image-2');
+form.append('image[]',new Blob([bytes],{type:matchPhoto[1]}),'foto-cliente.'+(matchPhoto[1]==='image/png'?'png':matchPhoto[1]==='image/webp'?'webp':'jpg'));
+form.append('prompt',prompt);
+form.append('size','1024x1024');
+form.append('quality','low');
+form.append('output_format','jpeg');
+let response;
+try{response=await fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{authorization:'Bearer '+apiKey},body:form})}catch(error){console.error('Preview API connection failed',error.message);return json({preview:body.photo,demo:true,waLink},200,cookie)}
+if(!response.ok){const detail=(await response.text()).slice(0,500);console.error('Preview generation failed',response.status,detail);return json({preview:body.photo,demo:true,waLink},200,cookie)}
+let generated;try{generated=await response.json()}catch{return json({preview:body.photo,demo:true,waLink},200,cookie)}
+const b64=generated&&generated.data&&generated.data[0]&&generated.data[0].b64_json;
+if(!b64)return json({preview:body.photo,demo:true,waLink},200,cookie);
+const format=generated.output_format==='png'?'png':generated.output_format==='webp'?'webp':'jpeg';
+return json({preview:'data:image/'+format+';base64,'+b64,demo:false,waLink},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
