@@ -30,11 +30,13 @@ if(!typeLabel||!styleLabel||!photoOk(body.photo,8000000))return json({error:'Esc
 const settings=await resolvedOrderSettings(env);
 const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
 const waText='Olá! Eu gerei uma prévia no site da FC Artes Digitais. Tipo: '+typeLabel+'. Estilo: '+styleLabel+'. Quero finalizar meu pedido.';
+const unlockWaText='Olá! Gostei da prévia que gerei no site da FC Artes Digitais. Quero receber a foto final SEM marca d’água. Tipo: '+typeLabel+'. Estilo: '+styleLabel+'.';
 const waLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent(waText):'';
+const unlockWaLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent(unlockWaText):'';
 const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira.com.br').replace(/\/+$/,'');
 const apiKey=cleanText(env.QUACKAPI_API_KEY);
 const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
-if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink},200,cookie);
+if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink,unlockWaLink},200,cookie);
 const prompt='EDITE a foto enviada e devolva UMA NOVA IMAGEM. Use a foto exclusivamente como referência visual e preserve rigorosamente a identidade real da pessoa ou pet: rosto, idade aparente, formato facial, cabelo, olhos, nariz, boca, tom de pele e demais características. Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante. Não adicionar letras, logotipos ou marca d água. Não trocar a pessoa por outra. Conteúdo apropriado para todas as idades.';
 let generated;
 try{
@@ -42,17 +44,17 @@ const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',heade
 if(!response.ok){
 const detail=(await response.text()).slice(0,800);
 console.error('QuackAPI image generation failed',response.status,detail);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink},200,cookie);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink,unlockWaLink},200,cookie);
 }
 generated=await response.json();
 }catch(error){
 console.error('QuackAPI image request failed',error&&error.message?error.message:error);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink},200,cookie);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink,unlockWaLink},200,cookie);
 }
 const item=generated&&generated.data&&generated.data[0];
-if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink},200,cookie);
-if(typeof item.b64_json==='string'&&item.b64_json.length>50)return json({preview:'data:image/jpeg;base64,'+item.b64_json,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
-if(typeof item.url==='string'&&item.url)return json({preview:item.url,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
+if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink},200,cookie);
+if(typeof item.b64_json==='string'&&item.b64_json.length>50)return json({preview:'data:image/jpeg;base64,'+item.b64_json,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink,unlockWaLink},200,cookie);
+if(typeof item.url==='string'&&item.url)return json({preview:item.url,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink,unlockWaLink},200,cookie);
 if(item.id){
 try{
 const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
@@ -60,11 +62,11 @@ if(imageResponse.ok){
 const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
 let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
 const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
-return json({preview:'data:'+contentType+';base64,'+btoa(binary),demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink},200,cookie);
+return json({preview:'data:'+contentType+';base64,'+btoa(binary),demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink,unlockWaLink},200,cookie);
 }
 }catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
 }
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink},200,cookie)}
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink,unlockWaLink},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
