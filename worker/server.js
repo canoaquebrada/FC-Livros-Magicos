@@ -60,7 +60,7 @@ const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
 if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
 if(!env.BUCKET)return json({error:'Armazenamento indisponível'},503,cookie);
-if(request.method==='GET')return json({shop:settings.shop,whatsapp:settings.whatsapp,price:settings.price,pix:settings.pix,storagePersistent:Boolean(settings.storagePersistent),whatsappCloudConfigured:Boolean(settings.token&&settings.phoneId),aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI_API_KEY))},200,cookie);
+if(request.method==='GET')return json({shop:settings.shop,whatsapp:settings.whatsapp,price:settings.price,pix:settings.pix,pixCopyPaste:settings.pixCopyPaste||'',storagePersistent:Boolean(settings.storagePersistent),whatsappCloudConfigured:Boolean(settings.token&&settings.phoneId),aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI_API_KEY))},200,cookie);
 if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
 const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
 if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
@@ -71,8 +71,8 @@ if(clean.whatsapp&&clean.whatsapp.length<12)return json({error:'Informe um Whats
 if(!clean.price)return json({error:'Informe o preço.'},400,cookie);
 await saveAdminPreferences(env,clean);
 const updated=await resolvedOrderSettings(env);
-return json({ok:true,shop:updated.shop,whatsapp:updated.whatsapp,price:updated.price,pix:updated.pix,storagePersistent:Boolean(updated.storagePersistent)},200,cookie)}
-if(url.pathname==='/api/shop'){const settings=await resolvedOrderSettings(env);return json({shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),adminConfigured:Boolean(settings.admin),storagePersistent:Boolean(settings.storagePersistent)},200,cookie)}
+return json({ok:true,shop:updated.shop,whatsapp:updated.whatsapp,price:updated.price,pix:updated.pix,pixCopyPaste:updated.pixCopyPaste||'',storagePersistent:Boolean(updated.storagePersistent)},200,cookie)}
+if(url.pathname==='/api/shop'){const settings=await resolvedOrderSettings(env);return json({shop:settings.shop,price:settings.price,pix:settings.pix,pixCopyPaste:settings.pixCopyPaste||'',whatsappConfigured:Boolean(settings.whatsapp),adminConfigured:Boolean(settings.admin),storagePersistent:Boolean(settings.storagePersistent)},200,cookie)}
 if(url.pathname==='/api/visits'){const stats=await visitStats(env);return json(stats,200,cookie)}
 if(url.pathname==='/api/order'){
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
@@ -95,7 +95,7 @@ const record={code,accessToken,status:'novo',total:settings.price,createdAt:new 
 try{record.notified=await sendOrderToWhatsApp(settings,summary,briefing)}catch(error){record.notified={sent:false,reason:error.message}}
 await saveOrderRecord(env,record);
 await removeDraftIndex(env,token);
-return json({code,link,waLink:orderWhatsAppLink(settings,summary),summary,shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),painelConfigured:Boolean(settings.admin),notified:record.notified},200,cookie)}
+return json({code,link,waLink:orderWhatsAppLink(settings,summary),summary,shop:settings.shop,price:settings.price,pix:settings.pix,pixCopyPaste:settings.pixCopyPaste||'',whatsappConfigured:Boolean(settings.whatsapp),painelConfigured:Boolean(settings.admin),notified:record.notified},200,cookie)}
 return json({error:'Método não permitido'},405)}
 if(url.pathname.startsWith('/pedido/')){
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);

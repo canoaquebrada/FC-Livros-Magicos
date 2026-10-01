@@ -4,7 +4,7 @@ assert(html.includes('<script type="application/json" id="boot">'),'marcador de 
 const routes={'/criar/idade':0,'/criar/foto':1,'/criar/tema':2,'/criar/sentimentos':3,'/criar/estilo':4,'/criar/estrela':5,'/criar/objetivo':6,'/criar/personagens':7,'/criar/idioma':8,'/criar/dedicatoria':9,'/criar/revelacao':10,'/criar/revisao':11};
 const slugs=[...html.matchAll(/slug:'([a-z]+)'/g)].map(match=>match[1]);
 assert.deepEqual(slugs,Object.keys(routes).map(path=>path.replace('/criar/','')),'slugs do cliente e do servidor estão dessincronizados');
-const items=new Map();const env={SHOP_NAME:'FC Livros Mágicos',WHATSAPP_NUMBER:'5511999999999',PRICE_LABEL:'R$ 49,90',PIX_KEY:'pix@exemplo.com',ORDER_SECRET:'segredo-de-teste',ADMIN_TOKEN:'token-de-teste',BUCKET:{get:async key=>items.has(key)?{json:async()=>JSON.parse(items.get(key))}:null,put:async(key,value)=>items.set(key,value),delete:async key=>items.delete(key)}};
+const items=new Map();const env={SHOP_NAME:'FC Livros Mágicos',WHATSAPP_NUMBER:'5511999999999',PRICE_LABEL:'R$ 49,90',PIX_KEY:'pix@exemplo.com',PIX_COPY_PASTE:'000201PIXTESTE123456789',ORDER_SECRET:'segredo-de-teste',ADMIN_TOKEN:'token-de-teste',BUCKET:{get:async key=>items.has(key)?{json:async()=>JSON.parse(items.get(key))}:null,put:async(key,value)=>items.set(key,value),delete:async key=>items.delete(key)}};
 const page=await app.default.fetch(new Request('https://example.test/criar/idade'),env);assert.equal(page.status,200);
 const pageHtml=await page.text();assert(pageHtml.includes('Para que idade'),'etapa de idade ausente');assert(pageHtml.includes('visit-count'),'contador de visitas ausente do rodapé');const firstVisitStats=JSON.parse(items.get('analytics/visits.json'));assert.equal(firstVisitStats.total,1,'primeira sessão conta uma visita');assert(pageHtml.includes("const languages=[['Português (BR)'")&&!pageHtml.includes("['English")&&!pageHtml.includes("['Español"),'somente Português (BR) disponível');assert(pageHtml.includes('Passo'),'indicador de passos ausente');assert(pageHtml.includes('crop-canvas')&&pageHtml.includes('reveal-range'),'crop ou prévia ausentes');
 const cookie=page.headers.get('set-cookie').split(';')[0];
@@ -38,12 +38,12 @@ assert.equal(JSON.parse(items.get('briefings/index.json')).length,0,'carrinho re
 assert.match(order.code,/^[A-F0-9]{12}$/,'código do pedido');
 assert(order.link.startsWith('https://example.test/pedido/'),'link do pedido');assert(order.waLink.startsWith('https://wa.me/5511999999999?text='),'link do WhatsApp');
 assert(order.summary.includes('Pedido '+order.code)&&order.summary.includes('Levi')&&order.summary.includes('pix@exemplo.com')&&order.summary.includes('(85) 99999-9999'),'resumo do pedido');assert(order.summary.includes('Personagens que vão aparecer')&&order.summary.includes('Mel · Bichinho · cachorro'),'personagens presentes no resumo do WhatsApp');
-assert.equal(order.whatsappConfigured,true,'número configurado');assert.equal(order.notified.sent,false,'envio automático desligado sem token');
+assert.equal(order.whatsappConfigured,true,'número configurado');assert.equal(order.pixCopyPaste,'000201PIXTESTE123456789','Pix Copia e Cola retornado no pedido');assert.equal(order.notified.sent,false,'envio automático desligado sem token');
 const orderPage=await app.default.fetch(new Request(order.link),env);assert.equal(orderPage.status,200,'página do pedido');
 const orderHtml=await orderPage.text();
 assert(orderHtml.includes('Levi')&&orderHtml.includes('pix@exemplo.com')&&orderHtml.includes('(85) 99999-9999')&&orderHtml.includes('Pedido '+order.code),'dados na página do pedido');
 assert(orderHtml.includes('data:image/jpeg'),'foto na página do pedido');
-assert(pageHtml.includes('FINALIZAR E ENVIAR NO WHATSAPP')&&pageHtml.includes('Seu livro está quase pronto'),'CTA final reforçado');
+assert(pageHtml.includes('FINALIZAR E ENVIAR NO WHATSAPP')&&pageHtml.includes('Seu livro está quase pronto'),'CTA final reforçado');assert(pageHtml.includes('PAGAR AGORA VIA PIX')&&pageHtml.includes('pix-code'),'checkout Pix disponível');
 assert(orderHtml.includes('noindex'),'página do pedido fora de buscadores');
 assert.equal((await app.default.fetch(new Request('https://example.test/pedido/'+order.code),env)).status,404,'link sem token deve falhar');
 assert.equal((await app.default.fetch(new Request('https://example.test/pedido/'+order.code+'?t=token-de-teste'),env)).status,200,'token de administração abre o pedido');
@@ -69,7 +69,7 @@ assert(painelHtml.includes('Carrinhos abandonados')&&painelHtml.includes('CART00
 const configPage=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&view=config'),env);assert.equal(configPage.status,200,'página de configurações');const configHtml=await configPage.text();
 for(const block of ['Configurações','Dados da loja','Integrações e segurança','Armazenamento persistente','WhatsApp Cloud API','Segurança'])assert(configHtml.includes(block),'configurações sem: '+block);
 const settingsGet=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste'),env);assert.equal(settingsGet.status,200,'leitura das configurações');
-const settingsBefore=await settingsGet.json();assert.equal(settingsBefore.shop,'FC Livros Mágicos','nome da loja nas configurações');
+const settingsBefore=await settingsGet.json();assert.equal(settingsBefore.shop,'FC Livros Mágicos','nome da loja nas configurações');assert.equal(settingsBefore.pixCopyPaste,'000201PIXTESTE123456789','Pix Copia e Cola nas configurações');
 assert.equal((await app.default.fetch(new Request('https://example.test/api/admin/settings?token=errado'),env)).status,403,'token inválido nas configurações');
 assert.equal((await app.default.fetch(new Request('https://example.test/painel?token=errado'),env)).status,403,'token inválido no painel');
 assert.equal((await app.default.fetch(new Request('https://example.test/painel'),env)).status,403,'painel sem token');
@@ -104,9 +104,9 @@ assert.equal(fallback.story.mock,true,'sem chave cai no provedor de demonstraç�
 await send({method:'PUT',headers,body:JSON.stringify({data:{name:'Levi'},step:1})},200,'briefing incompleto');
 const incomplete=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(incomplete.status,400,'pedido sem briefing completo');
 assert((await incomplete.json()).error.includes('Faltam informações'),'mensagem de campos faltantes');
-const settingsSave=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test'},body:JSON.stringify({shop:'FC Loja Teste',whatsapp:'85992019111',price:'R$ 59,90',pix:'pix-teste'})}),env);assert.equal(settingsSave.status,200,'salvamento das configurações');
+const settingsSave=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test'},body:JSON.stringify({shop:'FC Loja Teste',whatsapp:'85992019111',price:'R$ 59,90',pix:'pix-teste',pixCopyPaste:'000201NOVOPIX987654321'})}),env);assert.equal(settingsSave.status,200,'salvamento das configurações');
 const settingsSaved=await settingsSave.json();assert.equal(settingsSaved.whatsapp,'5585992019111','WhatsApp normalizado nas configurações');
 const shopAfter=await (await app.default.fetch(new Request('https://example.test/api/shop'),env)).json();
-assert.equal(shopAfter.shop,'FC Loja Teste','nome da loja aplicado');assert.equal(shopAfter.price,'R$ 59,90','preço aplicado');assert.equal(shopAfter.pix,'pix-teste','Pix aplicado');assert.equal(shopAfter.whatsappConfigured,true,'WhatsApp aplicado');
+assert.equal(shopAfter.shop,'FC Loja Teste','nome da loja aplicado');assert.equal(shopAfter.price,'R$ 59,90','preço aplicado');assert.equal(shopAfter.pix,'pix-teste','Pix aplicado');assert.equal(shopAfter.pixCopyPaste,'000201NOVOPIX987654321','Pix Copia e Cola aplicado');assert.equal(shopAfter.whatsappConfigured,true,'WhatsApp aplicado');
 console.log('HTML/JS valid; 12 rotas de passo, deep link, crop/prévia, pedido no WhatsApp, painel e isolamento de sessão verificados.');
 async function send(options,expected,label){const response=await app.default.fetch(new Request('https://example.test/api/draft',options),env);assert.equal(response.status,expected,'esperava '+expected+' em '+label+' e recebeu '+response.status)}
