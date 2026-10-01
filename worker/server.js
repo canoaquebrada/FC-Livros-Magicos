@@ -53,8 +53,8 @@ return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_fa
 }
 const item=generated&&generated.data&&generated.data[0];
 if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink},200,cookie);
-if(typeof item.b64_json==='string'&&item.b64_json.length>50)return json({preview:'data:image/jpeg;base64,'+item.b64_json,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink,unlockWaLink},200,cookie);
-if(typeof item.url==='string'&&item.url)return json({preview:item.url,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink,unlockWaLink},200,cookie);
+if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel,model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
+if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel,model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
 if(item.id){
 try{
 const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
@@ -62,7 +62,7 @@ if(imageResponse.ok){
 const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
 let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
 const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
-return json({preview:'data:'+contentType+';base64,'+btoa(binary),demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',waLink,unlockWaLink},200,cookie);
+const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel,model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie);
 }
 }catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
 }
@@ -88,6 +88,21 @@ await saveDraftIndex(env,token,body);
 await registerFunnelStep(env,token,body.step);
 return json({saved:true},200,cookie)}
 return json({error:'Método não permitido'},405)}
+if(url.pathname==='/api/admin/preview-image'){
+const settings=await resolvedOrderSettings(env);
+if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
+if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
+if(request.method!=='GET'&&request.method!=='HEAD')return json({error:'Método não permitido'},405,cookie);
+const record=await readQuizPreviewRecord(env,url.searchParams.get('id')||'');
+if(!record)return json({error:'Prévia não encontrada'},404,cookie);
+const kind=url.searchParams.get('kind')==='original'?'original':'preview';
+const value=cleanText(record[kind]);
+if(!value)return json({error:'Imagem não encontrada'},404,cookie);
+if(/^https?:\/\//i.test(value)){const remote=await fetch(value);if(!remote.ok)return json({error:'Imagem indisponível'},502,cookie);const bytes=new Uint8Array(await remote.arrayBuffer());return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':remote.headers.get('content-type')||'image/jpeg','cache-control':'private, no-store','content-disposition':'inline',...cookie}})}
+const match=value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+if(!match)return json({error:'Formato de imagem inválido'},415,cookie);
+const bytes=Uint8Array.from(atob(match[2]),ch=>ch.charCodeAt(0));
+return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':match[1],'cache-control':'private, no-store','content-disposition':'inline',...cookie}})}
 if(url.pathname==='/api/admin/book'||url.pathname==='/api/admin/pdf'){
 const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
@@ -174,12 +189,16 @@ if(!settings.admin)return json({error:'Painel não configurado: defina ADMIN_TOK
 if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
 const view=url.searchParams.get('view')||'dashboard';
+if(view==='previews'){
+const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
+if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
+return new Response(previewAdminHtml(await quizPreviewIndex(env),settings,settings.admin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(view==='config'){
 const info={aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI_API_KEY))};
-return new Response(adminSettingsHtml(settings,settings.admin,info),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'",...cookie}})}
+return new Response(adminSettingsHtml(settings,settings.admin,info),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 const remove=orderCleanCode(url.searchParams.get('apagar')||'');
 if(remove)await deleteOrderRecord(env,remove);
-return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin,await draftIndex(env),await visitStats(env),await funnelStats(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'",...cookie}})}
+return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin,await draftIndex(env),await visitStats(env),await funnelStats(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(url.pathname.startsWith('/api/'))return json({error:'Não encontrado'},404);
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
 const path=url.pathname.length>1?(url.pathname.replace(/\/+$/,'')||'/'):url.pathname;
