@@ -24,7 +24,9 @@ if(raw.length>MAX_BODY)return json({error:'Arquivo muito grande'},413);
 let body;try{body=JSON.parse(raw)}catch{return json({error:'Dados inválidos'},400)}
 if(!draftOk(body))return json({error:'Dados inválidos'},400);
 body.data.language='Português (BR)';
+body.updatedAt=new Date().toISOString();
 await env.BUCKET.put(key,JSON.stringify(body),{httpMetadata:{contentType:'application/json'}});
+await saveDraftIndex(env,token,body);
 return json({saved:true},200,cookie)}
 return json({error:'Método não permitido'},405)}
 if(url.pathname==='/api/admin/book'||url.pathname==='/api/admin/pdf'){
@@ -91,6 +93,8 @@ const summary=orderSummary(briefing,code,settings,link);
 const record={code,accessToken,status:'novo',total:settings.price,createdAt:new Date().toISOString(),briefing,summary,story:null,notified:{sent:false,reason:''}};
 try{record.notified=await sendOrderToWhatsApp(settings,summary,briefing.photo)}catch(error){record.notified={sent:false,reason:error.message}}
 await saveOrderRecord(env,record);
+await removeDraftIndex(env,token);
+if(typeof env.BUCKET.delete==='function')await env.BUCKET.delete('briefings/'+token+'.json');
 return json({code,link,waLink:orderWhatsAppLink(settings,summary),summary,shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),painelConfigured:Boolean(settings.admin),notified:record.notified},200,cookie)}
 return json({error:'Método não permitido'},405)}
 if(url.pathname.startsWith('/pedido/')){
@@ -112,7 +116,7 @@ const info={aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI
 return new Response(adminSettingsHtml(settings,settings.admin,info),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'",...cookie}})}
 const remove=orderCleanCode(url.searchParams.get('apagar')||'');
 if(remove)await deleteOrderRecord(env,remove);
-return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'",...cookie}})}
+return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin,await draftIndex(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'",...cookie}})}
 if(url.pathname.startsWith('/api/'))return json({error:'Não encontrado'},404);
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
 const path=url.pathname.length>1?(url.pathname.replace(/\/+$/,'')||'/'):url.pathname;

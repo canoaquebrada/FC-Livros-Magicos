@@ -18,6 +18,7 @@ const headers={'Content-Type':'application/json',Origin:'https://example.test',C
 const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
 await send({method:'PUT',headers,body:JSON.stringify(draft)},200,'salvamento do briefing');
 const get=await app.default.fetch(new Request('https://example.test/api/draft',{headers:{Cookie:cookie}}),env);const savedDraft=await get.json();assert.equal(savedDraft.data.language,'Português (BR)','briefing salvo em Português (BR)');
+const trackedDrafts=JSON.parse(items.get('briefings/index.json'));assert.equal(trackedDrafts.length,1,'rascunho entrou no índice de carrinhos');assert.equal(trackedDrafts[0].progress,100,'progresso do rascunho registrado');
 const other=await app.default.fetch(new Request('https://example.test/api/draft'),env);assert.equal(await other.json(),null,'sessão sem briefing deve receber null');
 await send({method:'DELETE',headers},405,'método não permitido no briefing');
 await send({method:'PUT',headers:{...headers,Origin:'https://evil.test'},body:JSON.stringify(draft)},403,'origem estrangeira');
@@ -32,6 +33,7 @@ const complete={data:{age:'0 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauro
 await send({method:'PUT',headers,body:JSON.stringify(complete)},200,'briefing completo');
 const orderResponse=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(orderResponse.status,200,'criação do pedido');
 const order=await orderResponse.json();
+assert.equal(JSON.parse(items.get('briefings/index.json')).length,0,'carrinho removido após virar pedido');
 assert.match(order.code,/^[A-F0-9]{12}$/,'código do pedido');
 assert(order.link.startsWith('https://example.test/pedido/'),'link do pedido');assert(order.waLink.startsWith('https://wa.me/5511999999999?text='),'link do WhatsApp');
 assert(order.summary.includes('Pedido '+order.code)&&order.summary.includes('Levi')&&order.summary.includes('pix@exemplo.com')&&order.summary.includes('(85) 99999-9999'),'resumo do pedido');
@@ -40,6 +42,7 @@ const orderPage=await app.default.fetch(new Request(order.link),env);assert.equa
 const orderHtml=await orderPage.text();
 assert(orderHtml.includes('Levi')&&orderHtml.includes('pix@exemplo.com')&&orderHtml.includes('(85) 99999-9999')&&orderHtml.includes('Pedido '+order.code),'dados na página do pedido');
 assert(orderHtml.includes('data:image/jpeg'),'foto na página do pedido');
+assert(pageHtml.includes('FINALIZAR E ENVIAR NO WHATSAPP')&&pageHtml.includes('Seu livro está quase pronto'),'CTA final reforçado');
 assert(orderHtml.includes('noindex'),'página do pedido fora de buscadores');
 assert.equal((await app.default.fetch(new Request('https://example.test/pedido/'+order.code),env)).status,404,'link sem token deve falhar');
 assert.equal((await app.default.fetch(new Request('https://example.test/pedido/'+order.code+'?t=token-de-teste'),env)).status,200,'token de administração abre o pedido');
@@ -51,6 +54,7 @@ const autoResponse=await app.default.fetch(new Request('https://example.test/api
 globalThis.fetch=realFetch;
 const autoOrder=await autoResponse.json();
 assert.equal(autoOrder.notified.sent,true,'envio automático pelo Cloud API');assert.equal(calls.length,3,'upload da mídia, foto e mensagem');assert(calls[0].url.includes('/123456/media'),'endpoint de mídia');assert(calls[2].options.body.includes('Pedido '+autoOrder.code),'texto enviado');
+items.set('briefings/index.json',JSON.stringify([{token:'a'.repeat(64),cartId:'CART000001',createdAt:'2026-09-29T10:00:00.000Z',updatedAt:'2026-09-29T10:30:00.000Z',step:10,progress:92,name:'Ana',whatsapp:'(85) 98888-7777',theme:'Fadas',hasPhoto:true}]));
 const painel=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste'),env);assert.equal(painel.status,200,'painel');const painelHtml=await painel.text();
 assert(painelHtml.includes(order.code)&&painelHtml.includes(autoOrder.code),'pedidos listados');
 assert(painelHtml.includes('WhatsApp: 5511999999999'),'configuração visível');
@@ -59,6 +63,7 @@ assert(painelHtml.includes('/pedido/'+order.code+'?t=token-de-teste'),'painel ab
 assert(painelHtml.includes('Dashboard de pedidos')&&painelHtml.includes('admin-search')&&painelHtml.includes('admin-status-filter'),'dashboard profissional com busca e filtros');
 assert(painelHtml.includes('Pedidos')&&painelHtml.includes('Novos')&&painelHtml.includes('Em produção')&&painelHtml.includes('Pagos')&&painelHtml.includes('Enviados'),'cards de métricas do painel');
 assert(painelHtml.includes('Configurações')&&painelHtml.includes('Abrir site'),'navegação profissional do admin');
+assert(painelHtml.includes('Carrinhos abandonados')&&painelHtml.includes('CART000001')&&painelHtml.includes('Ana')&&painelHtml.includes('92% preenchido'),'carrinho abandonado visível no admin');assert(painelHtml.includes('Recuperar no WhatsApp'),'ação de recuperação disponível');
 const configPage=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&view=config'),env);assert.equal(configPage.status,200,'página de configurações');const configHtml=await configPage.text();
 for(const block of ['Configurações','Dados da loja','Integrações e segurança','Armazenamento persistente','WhatsApp Cloud API','Segurança'])assert(configHtml.includes(block),'configurações sem: '+block);
 const settingsGet=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste'),env);assert.equal(settingsGet.status,200,'leitura das configurações');

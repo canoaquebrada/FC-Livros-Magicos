@@ -54,12 +54,12 @@ if(!second.valid||second.hint!=='')failures.push('WhatsApp válido recusado na r
 if(first.review.includes('book-page'))failures.push('a revisão do cliente ainda exibe páginas de produção');
 for(const marker of ['whatsapp','Mel','Aquarela','Português (BR)','Com amor'])if(!first.review.includes(marker))failures.push('revisão sem "'+marker+'"');
 if((first.review.match(/data-step="5"/g)||[]).length!==1)failures.push('revisão sem atalho de edição da criança');
-if(!first.review.includes('send-order')||!first.review.includes('Enviar pedido pelo WhatsApp'))failures.push('revisão sem o envio do pedido pelo WhatsApp');
+if(!first.review.includes('send-order')||!first.review.includes('FINALIZAR E ENVIAR NO WHATSAPP')||!first.review.includes('Seu livro está quase pronto'))failures.push('revisão sem CTA forte do WhatsApp');
 if(first.review.includes('Baixar minhas respostas')||first.review.includes('id="export"'))failures.push('revisão ainda oferece download das respostas do cliente');
 for(const leak of ['book-pdf','Gerar história','Orientação para ilustração','Baixar briefing','generate','Prompt:'])if(first.review.includes(leak))failures.push('revisão expõe material de produção: '+leak);
 if(!orderBlockCheck(sent))failures.push('bloco do pedido enviado sem código, link do WhatsApp ou cópia do resumo');
 for(const leak of ['book-pdf','Gerar história','Orientação para ilustração','generate'])if(sent.includes(leak))failures.push('pós-envio expõe material de produção: '+leak);
-function orderBlockCheck(html){return html.includes('ABCD1234EF56')&&html.includes('https://wa.me/5511999999999?text=oi')&&html.includes('copy-order')&&html.includes('open-whatsapp')}
+function orderBlockCheck(html){return html.includes('ABCD1234EF56')&&html.includes('https://wa.me/5511999999999?text=oi')&&html.includes('copy-order')&&html.includes('open-whatsapp')&&html.includes('Abrir WhatsApp e concluir')}
 if(!reveal.includes('reveal-range')||!reveal.includes('book-photo'))failures.push('etapa de prévia sem comparação antes/depois');
 if(failures.length){console.error('Falhas:\n - '+failures.join('\n - '));process.exit(1)}
 console.log('Renderização das 12 etapas, prévia e revisão (sem material de produção) ok:');
