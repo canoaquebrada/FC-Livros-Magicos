@@ -15,7 +15,7 @@ assert.equal((await app.default.fetch(new Request('https://example.test/criar/fo
 assert.equal((await app.default.fetch(new Request('https://example.test/criar/tema',{method:'HEAD'}),env)).status,200);
 assert.equal((await app.default.fetch(new Request('https://example.test/api/desconhecido'),env)).status,404);
 const headers={'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie};
-const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:JPG}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
+const draft={data:{name:'Teste',photo:'',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:''}],language:'Português (BR)',whatsapp:'(85) 99999-9999'},step:11};
 await send({method:'PUT',headers,body:JSON.stringify(draft)},200,'salvamento do briefing');
 const get=await app.default.fetch(new Request('https://example.test/api/draft',{headers:{Cookie:cookie}}),env);const savedDraft=await get.json();assert.equal(savedDraft.data.language,'Português (BR)','briefing salvo em Português (BR)');
 const trackedDrafts=JSON.parse(items.get('briefings/index.json'));assert.equal(trackedDrafts.length,1,'rascunho entrou no índice de carrinhos');assert.equal(trackedDrafts[0].progress,100,'progresso do rascunho registrado');
