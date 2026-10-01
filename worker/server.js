@@ -94,7 +94,6 @@ const record={code,accessToken,status:'novo',total:settings.price,createdAt:new 
 try{record.notified=await sendOrderToWhatsApp(settings,summary,briefing.photo)}catch(error){record.notified={sent:false,reason:error.message}}
 await saveOrderRecord(env,record);
 await removeDraftIndex(env,token);
-if(typeof env.BUCKET.delete==='function')await env.BUCKET.delete('briefings/'+token+'.json');
 return json({code,link,waLink:orderWhatsAppLink(settings,summary),summary,shop:settings.shop,price:settings.price,pix:settings.pix,whatsappConfigured:Boolean(settings.whatsapp),painelConfigured:Boolean(settings.admin),notified:record.notified},200,cookie)}
 return json({error:'Método não permitido'},405)}
 if(url.pathname.startsWith('/pedido/')){
