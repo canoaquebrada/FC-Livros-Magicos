@@ -31,18 +31,28 @@ casal_claras:'ENSAIO CASAL ROUPAS CLARAS: transforme o casal em um ensaio fotogr
 casal_coloridas:'ENSAIO CASAL ROUPAS COLORIDAS: transforme o casal em um ensaio fotográfico profissional romântico com cores elegantes e harmoniosas. Use roupas coloridas sofisticadas, por exemplo verde escuro, vermelho, laranja, azul, vinho ou tons complementares, sem estampas exageradas. Fundo de estúdio quente, neutro ou marrom elegante, iluminação profissional suave e acabamento editorial. Use UMA pose romântica natural inspirada nestas opções: 1) abraço de frente; 2) homem sentado e mulher atrás abraçando; 3) frente a frente com testas próximas; 4) abraço por trás com sorriso natural; 5) casal sentado junto, abraçado. Manter máxima fidelidade facial e proporções naturais.'
 };
 const typeLabel=typeMap[body.type],styleLabel=styleMap[body.style];
-if(!typeLabel||!styleLabel||!photoOk(body.photo,8000000))return json({error:'Escolha uma foto, um tipo e um estilo válidos.'},400,cookie);
+const couplePoseMap={
+'1':'POSIÇÃO 1: casal de pé, abraçado de frente, corpos próximos, uma mão apoiada no peito ou cintura do parceiro, expressão romântica e natural.',
+'2':'POSIÇÃO 2: homem sentado à frente e mulher atrás dele, abraçando pelos ombros e pelo peito, ambos olhando para a câmera com expressão natural.',
+'3':'POSIÇÃO 3: casal de frente um para o outro, rostos muito próximos, testas ou narizes quase encostando, mãos delicadamente no rosto ou pescoço do parceiro.',
+'4':'POSIÇÃO 4: homem sentado ou levemente abaixo e mulher atrás ou ao lado abraçando por cima dos ombros, pose espontânea e carinhosa.',
+'5':'POSIÇÃO 5: casal sentado lado a lado ou no chão, pernas confortáveis, abraçados, corpos próximos e expressão relaxada.'
+};
+const poseKey=cleanText(body.pose);
+if(!typeLabel||!styleLabel||!photoOk(body.photo,8000000)||(body.type==='casal'&&!couplePoseMap[poseKey]))return json({error:'Escolha uma foto, um estilo e uma posição válidos.'},400,cookie);
 const settings=await resolvedOrderSettings(env);
 const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
-const waText='Olá! Eu gerei uma prévia no site da FC Artes Digitais. Tipo: '+typeLabel+'. Estilo: '+styleLabel+'. Quero finalizar meu pedido.';
-const unlockWaText='Olá! Gostei da prévia que gerei no site da FC Artes Digitais. Quero receber a foto final SEM marca d’água. Tipo: '+typeLabel+'. Estilo: '+styleLabel+'.';
+const poseText=body.type==='casal'&&poseKey?' · Posição '+poseKey:'';
+const waText='Olá! Eu gerei uma prévia no site da FC Artes Digitais. Tipo: '+typeLabel+'. Estilo: '+styleLabel+poseText+'. Quero finalizar meu pedido.';
+const unlockWaText='Olá! Gostei da prévia que gerei no site da FC Artes Digitais. Quero receber a foto final SEM marca d’água. Tipo: '+typeLabel+'. Estilo: '+styleLabel+poseText+'.';
 const waLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent(waText):'';
 const unlockWaLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent(unlockWaText):'';
 const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira.com.br').replace(/\/+$/,'');
 const apiKey=cleanText(env.QUACKAPI_API_KEY);
 const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
 if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink,unlockWaLink},200,cookie);
-const styleInstruction=couplePromptMap[body.style]||'Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante.';
+const poseInstruction=body.type==='casal'?' '+couplePoseMap[poseKey]:'';
+const styleInstruction=(couplePromptMap[body.style]||'Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante.')+poseInstruction;
 const prompt='EDITE a foto enviada e devolva UMA NOVA IMAGEM. Use a foto exclusivamente como referência visual e preserve rigorosamente a identidade real da pessoa ou pet: rosto, idade aparente, formato facial, cabelo, olhos, nariz, boca, tom de pele, altura relativa e demais características. '+styleInstruction+' Não adicionar letras, logotipos ou marca d água. Não trocar a pessoa por outra, não duplicar ninguém e não criar pessoas extras. Conteúdo apropriado para todas as idades.';
 let generated;
 try{
@@ -59,8 +69,8 @@ return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_fa
 }
 const item=generated&&generated.data&&generated.data[0];
 if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink},200,cookie);
-if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel,model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
-if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel,model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
+if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel+(body.type==='casal'&&poseKey?' · Posição '+poseKey:''),model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
+if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel+(body.type==='casal'&&poseKey?' · Posição '+poseKey:''),model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
 if(item.id){
 try{
 const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
@@ -68,7 +78,7 @@ if(imageResponse.ok){
 const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
 let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
 const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
-const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel,model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie);
+const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,type:typeLabel,style:styleLabel+(body.type==='casal'&&poseKey?' · Posição '+poseKey:''),model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie);
 }
 }catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
 }
