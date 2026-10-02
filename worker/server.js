@@ -29,31 +29,80 @@ const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigi
 if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
 const raw=await request.text();if(raw.length>9000000)return json({error:'A foto ficou grande demais. Escolha outra imagem.'},413,cookie);
 let body;try{body=JSON.parse(raw)}catch{return json({error:'Dados inválidos'},400,cookie)}
-const typeMap={casal:'casal romântico',familia:'família',infantil:'retrato infantil',pet:'retrato de pet',caricatura:'caricatura digital',homenagem:'homenagem afetiva'};
-const styleMap={studio:'estúdio profissional com fundo clean e iluminação suave',praia:'praia bonita com luz natural',jeans:'ensaio moderno com roupas jeans elegantes e camiseta clara',cartoon:'arte ilustrada moderna, sofisticada e bem acabada',casal_jeans:'Casal Jeans',casal_claras:'Casal Roupas Claras',casal_coloridas:'Casal Roupas Coloridas',casal_praia:'Casal Praia Romântica',casal_social:'Casal Social Elegante',casal_pb:'Casal Preto e Branco'};
+const typeMap={
+  casal:'casal romântico',
+  familia:'família',
+  infantil:'retrato infantil',
+  pet:'retrato de pet',
+  caricatura:'caricatura digital',
+  homenagem:'homenagem afetiva'
+};
+const styleMap={
+  studio:'estúdio profissional com fundo clean e iluminação suave',
+  praia:'praia bonita com luz natural',
+  jeans:'ensaio moderno com roupas jeans elegantes e camiseta clara',
+  cartoon:'arte ilustrada moderna, sofisticada e bem acabada',
+  casal_jeans:'Casal Jeans',
+  casal_claras:'Casal Roupas Claras',
+  casal_coloridas:'Casal Roupas Coloridas',
+  casal_praia:'Casal Praia Romântica',
+  casal_social:'Casal Social Elegante',
+  casal_pb:'Casal Preto e Branco'
+};
+
+const photoIdentityPrompt={
+  casal:'CASAL: mantenha exatamente as duas pessoas da foto, sem trocar, misturar, duplicar ou remover ninguém. Preserve individualmente o rosto de cada pessoa, idade aparente, formato facial, cabelo, linha do cabelo, sobrancelhas, olhos, nariz, boca, dentes quando visíveis, tom e textura natural da pele, formato corporal e diferença de altura/proporção entre os dois. O resultado deve continuar claramente reconhecível como o mesmo casal.',
+  familia:'FAMÍLIA: mantenha exatamente todas as pessoas que aparecem na foto de referência, sem criar, duplicar, apagar ou substituir ninguém. Preserve a identidade facial de cada integrante separadamente, idade aparente, cabelo, tom de pele, formato corporal, diferença de altura e proporção entre adultos e crianças. Não fundir rostos, braços, mãos ou corpos.',
+  infantil:'INFANTIL: preserve rigorosamente a identidade da criança e sua idade aparente. Não envelhecer, rejuvenescer, adultizar ou modificar o formato real do rosto. Manter cabelo, olhos, nariz, boca, tom de pele, expressão natural e proporções infantis. Roupas, pose e produção devem ser adequadas à idade, sem maquiagem adulta, sensualização ou aparência de adulto.',
+  pet:'PET: preserve rigorosamente o mesmo animal da foto. Manter espécie, raça ou tipo aparente, formato do focinho, olhos, orelhas, pelagem, cores, manchas, marcas características, porte, patas, cauda e proporções reais. Não transformar o pet em outro animal, não humanizar a anatomia, não criar patas extras e não duplicar o animal.',
+  caricatura:'CARICATURA: transforme o mesmo sujeito da foto em uma caricatura digital moderna e premium, mantendo máxima semelhança e reconhecimento. Estilize de forma leve e elegante, sem deformar exageradamente rosto, corpo ou características pessoais. Preserve idade aparente, cabelo, olhos, nariz, boca, tom de pele e traços marcantes. Se houver mais de uma pessoa ou pet, preservar cada identidade separadamente.',
+  homenagem:'HOMENAGEM: criar uma composição afetiva, respeitosa, delicada e elegante usando exclusivamente os sujeitos presentes na foto de referência. Preserve rigorosamente rosto, idade aparente, cabelo, tom de pele e proporções de cada pessoa ou características do pet. Não inventar pessoas, parentes ou animais. Não adicionar asas, auréolas, figuras religiosas, textos ou símbolos que não tenham sido solicitados.'
+};
+
+const commonStylePromptMap={
+  studio:'ESTILO ESTÚDIO PROFISSIONAL: retrato fotográfico realista em estúdio, fundo clean neutro em branco, cinza claro ou bege suave, iluminação principal softbox ampla e preenchimento delicado, aparência de lente 85 mm, pele natural, nitidez nos olhos e acabamento editorial premium. Pose natural e elegante, sem aparência artificial.',
+  praia:'ESTILO PRAIA: retrato fotográfico realista em praia bonita e limpa, mar e areia ao fundo, luz natural suave de manhã ou fim de tarde, céu equilibrado e cores naturais. Integrar o sujeito ao cenário com sombras e direção de luz coerentes, sem aparência de recorte ou colagem.',
+  jeans:'ESTILO JEANS: para pessoas, usar roupas modernas e elegantes em jeans azul combinadas com peças neutras claras, sem estampas chamativas; composição de ensaio profissional casual e sofisticado. Para pet, NÃO colocar roupa humana: manter o animal natural e usar apenas cenário editorial em tons de jeans/azul ou, no máximo, um acessório simples e confortável como bandana ou coleira.',
+  cartoon:'ESTILO ARTE ILUSTRADA: ilustração digital premium, moderna e sofisticada, traços limpos, acabamento semelhante a pintura digital/vetorial de alta qualidade, iluminação suave, volumes bem definidos e cores harmoniosas. Manter alta semelhança com a referência e evitar aparência infantilizada, genérica ou exageradamente deformada.'
+};
+
 const couplePromptMap={
-casal_jeans:'ENSAIO CASAL JEANS: transforme o casal em um ensaio fotográfico profissional romântico de estúdio. Os dois devem usar roupas jeans coordenadas em tons de azul, modernas e elegantes, com camiseta ou camisa neutra quando necessário. Fundo de estúdio cinza azulado ou neutro, iluminação softbox suave, acabamento editorial e pele natural. Use UMA pose romântica natural inspirada nestas opções: 1) casal de pé abraçado de frente; 2) homem sentado e mulher atrás abraçando pelos ombros; 3) frente a frente com testas ou narizes próximos; 4) abraço por trás com expressão espontânea; 5) casal sentado lado a lado ou no chão, abraçado. Não repetir pessoas, não alterar identidade e não trocar rostos.',
-casal_claras:'ENSAIO CASAL ROUPAS CLARAS: transforme o casal em um ensaio fotográfico profissional romântico e delicado. Vista os dois com roupas elegantes claras em branco, off-white, creme ou bege, sem estampas fortes. Fundo de estúdio claro em branco, bege suave ou cinza muito claro, iluminação macia e sofisticada, aparência clean e premium. Use UMA pose romântica natural inspirada nestas opções: 1) abraço de frente; 2) homem sentado e mulher atrás abraçando; 3) frente a frente com testas próximas; 4) abraço por trás ou sobre os ombros; 5) casal sentado junto, relaxado e carinhoso. Preservar rigorosamente os rostos e a idade aparente.',
-casal_coloridas:'ENSAIO CASAL ROUPAS COLORIDAS: transforme o casal em um ensaio fotográfico profissional romântico com cores elegantes e harmoniosas. Use roupas coloridas sofisticadas, por exemplo verde escuro, vermelho, laranja, azul, vinho ou tons complementares, sem estampas exageradas. Fundo de estúdio quente, neutro ou marrom elegante, iluminação profissional suave e acabamento editorial. Use UMA pose romântica natural inspirada nestas opções: 1) abraço de frente; 2) homem sentado e mulher atrás abraçando; 3) frente a frente com testas próximas; 4) abraço por trás com sorriso natural; 5) casal sentado junto, abraçado. Manter máxima fidelidade facial e proporções naturais.',
-casal_praia:'ENSAIO CASAL PRAIA ROMÂNTICA: transforme o casal em um ensaio fotográfico romântico na praia, com mar e areia ao fundo, luz natural suave de fim de tarde ou manhã clara, aparência fotográfica realista e profissional. Use roupas leves e elegantes em tons harmoniosos, sem estampas exageradas. A composição deve ser delicada e afetiva, com UMA pose romântica natural escolhida pelo cliente. Preservar rigorosamente os rostos, idade aparente, cabelo, tom de pele e proporções. Não adicionar outras pessoas.',
-casal_social:'ENSAIO CASAL SOCIAL ELEGANTE: transforme o casal em um retrato sofisticado de estúdio premium. Homem com camisa social, blazer ou terno elegante; mulher com roupa social elegante, vestido discreto ou conjunto sofisticado, sem transparência e sem excesso de decote. Fundo de estúdio refinado em cinza, grafite, bege escuro ou preto suave, iluminação softbox cinematográfica e acabamento editorial. Use UMA pose romântica natural escolhida pelo cliente. Preservar integralmente a identidade facial, idade aparente e proporções do casal.',
-casal_pb:'ENSAIO CASAL PRETO E BRANCO: crie um retrato profissional monocromático, elegante e atemporal, com contraste equilibrado, iluminação de estúdio suave e acabamento editorial clássico. Manter roupas elegantes e discretas, textura natural de pele e detalhes do cabelo. Use UMA pose romântica escolhida pelo cliente, com expressões naturais e conexão afetiva. Preservar rigorosamente os rostos, idade aparente e proporções. A imagem final deve ser somente em preto e branco, sem cor seletiva.'
+  casal_jeans:'ENSAIO CASAL JEANS: foto profissional romântica e realista em estúdio. Os dois usam looks coordenados em jeans azul com peças neutras brancas ou claras, elegantes e sem estampas fortes. Fundo cinza neutro ou cinza azulado, iluminação softbox suave, pele natural, nitidez facial e acabamento editorial. A pose deve seguir SOMENTE a posição escolhida abaixo.',
+  casal_claras:'ENSAIO CASAL ROUPAS CLARAS: foto profissional romântica, delicada e realista. Os dois usam roupas elegantes em branco, off-white, creme ou bege, sem transparência e sem estampas fortes. Fundo claro clean em branco, bege suave ou cinza muito claro, iluminação macia, pele natural e acabamento premium. A pose deve seguir SOMENTE a posição escolhida abaixo.',
+  casal_coloridas:'ENSAIO CASAL ROUPAS COLORIDAS: foto profissional romântica e realista com roupas sofisticadas em cores harmoniosas e complementares, como verde, vinho, azul, terracota ou vermelho elegante, sem estampas exageradas. Fundo de estúdio neutro ou quente, iluminação suave e acabamento editorial. A pose deve seguir SOMENTE a posição escolhida abaixo.',
+  casal_praia:'ENSAIO CASAL PRAIA ROMÂNTICA: foto profissional realista na praia, com mar e areia ao fundo, luz natural suave de manhã ou fim de tarde e sombras coerentes. Roupas leves, elegantes e harmoniosas, apropriadas para praia sem exageros. Composição afetiva e natural, sem aparência de montagem. A pose deve seguir SOMENTE a posição escolhida abaixo.',
+  casal_social:'ENSAIO CASAL SOCIAL ELEGANTE: retrato sofisticado e realista em estúdio premium. Homem com camisa social, blazer ou terno elegante; mulher com vestido discreto, conjunto sofisticado ou roupa social elegante, sem transparência e sem excesso de decote. Fundo cinza, grafite, bege escuro ou preto suave; iluminação cinematográfica de estúdio. A pose deve seguir SOMENTE a posição escolhida abaixo.',
+  casal_pb:'ENSAIO CASAL PRETO E BRANCO: retrato profissional monocromático, elegante e atemporal. Iluminação suave de estúdio, contraste equilibrado, textura natural da pele e detalhes preservados no cabelo e nas roupas. A imagem final deve ser integralmente em preto e branco, sem cor seletiva. A pose deve seguir SOMENTE a posição escolhida abaixo.'
 };
-const typeLabel=typeMap[body.type],styleLabel=styleMap[body.style];
+
 const couplePoseMap={
-'1':'POSIÇÃO 1: casal de pé, abraçado de frente, corpos próximos, uma mão apoiada no peito ou cintura do parceiro, expressão romântica e natural.',
-'2':'POSIÇÃO 2: homem sentado à frente e mulher atrás dele, abraçando pelos ombros e pelo peito, ambos olhando para a câmera com expressão natural.',
-'3':'POSIÇÃO 3: casal de frente um para o outro, rostos muito próximos, testas ou narizes quase encostando, mãos delicadamente no rosto ou pescoço do parceiro.',
-'4':'POSIÇÃO 4: homem sentado ou levemente abaixo e mulher atrás ou ao lado abraçando por cima dos ombros, pose espontânea e carinhosa.',
-'5':'POSIÇÃO 5: casal sentado lado a lado ou no chão, pernas confortáveis, abraçados, corpos próximos e expressão relaxada.'
+  '1':'POSIÇÃO 1 — ABRAÇO DE PÉ: casal de pé, lado a lado e levemente voltado para a câmera, abraçados de frente ou pela cintura, corpos próximos, mãos naturais e expressão romântica. Não sentar nenhum dos dois.',
+  '2':'POSIÇÃO 2 — ELE SENTADO, ELA ATRÁS: homem sentado à frente; mulher em pé ou levemente inclinada atrás dele, abraçando-o pelos ombros e pelo peito. Os dois olhando para a câmera. Não inverter as posições.',
+  '3':'POSIÇÃO 3 — FRENTE A FRENTE: casal de pé frente a frente, rostos próximos, testas ou narizes quase encostando, mãos naturais no rosto, braço ou cintura do parceiro, expressão delicada. Não transformar em beijo nem esconder os rostos.',
+  '4':'POSIÇÃO 4 — ABRAÇO POR TRÁS: homem em pé atrás da mulher, abraçando-a pela cintura ou parte superior do tronco; mulher à frente, ambos visíveis e com rostos livres. Não sentar o homem e não inverter quem fica atrás.',
+  '5':'POSIÇÃO 5 — SENTADOS JUNTOS: casal sentado lado a lado em banco, cadeira, sofá ou chão adequado ao cenário, corpos próximos e abraçados, pernas e mãos anatomicamente naturais, expressão relaxada e romântica.'
 };
+
+function photoStylePrompt(type,style){
+  if(type==='casal')return couplePromptMap[style]||'';
+  const base=commonStylePromptMap[style]||'';
+  if(type==='homenagem'&&style==='cartoon')return 'ESTILO HOMENAGEM ILUSTRADA: pintura digital elegante e sensível, acabamento artístico sofisticado, luz suave e atmosfera acolhedora. Evitar caricatura cômica ou exagerada. Manter máxima fidelidade às pessoas ou pets da referência.';
+  if(type==='caricatura'&&style==='studio')return 'CARICATURA EM ESTÚDIO: caricatura digital premium com aparência de retrato profissional, fundo clean neutro, iluminação suave de estúdio, traços bem definidos e estilização moderada. Não transformar em fotografia; manter claramente o acabamento ilustrado.';
+  if(type==='caricatura'&&style==='praia')return 'CARICATURA NA PRAIA: caricatura digital premium mantendo os mesmos traços e identidade, com cenário de praia bonito, luz natural suave, cores equilibradas e integração coerente entre personagem e fundo.';
+  if(type==='caricatura'&&style==='jeans')return 'CARICATURA JEANS: caricatura digital premium com roupa jeans moderna e elegante para pessoas, fundo sofisticado e iluminação suave. Se o sujeito for pet, não vestir roupa humana; usar apenas elementos visuais em tons de azul/jeans.';
+  if(type==='caricatura'&&style==='cartoon')return 'CARICATURA DIGITAL PREMIUM: desenho moderno e sofisticado, traços limpos, volumes suaves, alta semelhança facial e estilização controlada. Não exagerar cabeça, olhos, nariz, boca ou corpo. Resultado elegante, não cômico.';
+  return base;
+}
+
+const typeLabel=typeMap[body.type],styleLabel=styleMap[body.style];
 const poseKey=cleanText(body.pose);
+const allowedStyle=body.type==='casal'?Boolean(couplePromptMap[body.style]):Boolean(commonStylePromptMap[body.style]);
 const customerName=cleanText(body.customerName).slice(0,80);
 let customerWhatsapp=cleanText(body.customerWhatsapp).replace(/[^0-9]/g,'');
 if((customerWhatsapp.length===10||customerWhatsapp.length===11)&&!customerWhatsapp.startsWith('55'))customerWhatsapp='55'+customerWhatsapp;
 if(customerWhatsapp&&(customerWhatsapp.length<12||customerWhatsapp.length>15))customerWhatsapp='';
 
-if(!typeLabel||!styleLabel||!photoOk(body.photo,8000000)||(body.type==='casal'&&!couplePoseMap[poseKey]))return json({error:'Escolha uma foto, um estilo e uma posição válidos.'},400,cookie);
+if(!typeLabel||!styleLabel||!allowedStyle||!photoOk(body.photo,8000000)||(body.type==='casal'&&!couplePoseMap[poseKey]))return json({error:'Escolha uma foto, um estilo e uma posição válidos.'},400,cookie);
 const settings=await resolvedOrderSettings(env);
 const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
 const poseText=body.type==='casal'&&poseKey?' · Posição '+poseKey:'';
@@ -70,9 +119,20 @@ if(!rateLimit.allowed){
   const error=rateLimit.reason==='blocked'?'As novas gerações foram bloqueadas pelo atendimento. Fale conosco no WhatsApp para solicitar liberação.':rateLimit.reason==='daily_limit'?'Você já usou suas 3 prévias gratuitas de hoje. Fale conosco no WhatsApp para continuar.':'Aguarde '+Math.max(1,Math.ceil((rateLimit.retryAfterSeconds||0)/60))+' minuto(s) antes de gerar outra prévia.';
   return json({error,rateLimit:publicQuizGenerationStatus(rateLimit),waLink,unlockWaLink},429,cookie);
 }
+const identityInstruction=photoIdentityPrompt[body.type]||'';
+const styleInstruction=photoStylePrompt(body.type,body.style);
 const poseInstruction=body.type==='casal'?' '+couplePoseMap[poseKey]:'';
-const styleInstruction=(couplePromptMap[body.style]||'Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante.')+poseInstruction;
-const prompt='EDITE a foto enviada e devolva UMA NOVA IMAGEM. Use a foto exclusivamente como referência visual e preserve rigorosamente a identidade real da pessoa ou pet: rosto, idade aparente, formato facial, cabelo, olhos, nariz, boca, tom de pele, altura relativa e demais características. '+styleInstruction+' Não adicionar letras, logotipos ou marca d água. Não trocar a pessoa por outra, não duplicar ninguém e não criar pessoas extras. Conteúdo apropriado para todas as idades.';
+const prompt=[
+  'TAREFA: edite a foto enviada e devolva UMA ÚNICA NOVA IMAGEM final, nunca uma colagem, grade, antes/depois ou várias opções.',
+  'REFERÊNCIA OBRIGATÓRIA: use exclusivamente a foto enviada como referência do sujeito. Preserve máxima fidelidade visual e não invente uma nova identidade.',
+  identityInstruction,
+  styleInstruction,
+  poseInstruction,
+  'QUALIDADE: composição fotográfica ou ilustrada profissional conforme o estilo escolhido, iluminação coerente, alta nitidez no rosto/olhos, mãos e dedos anatomicamente corretos, braços e pernas completos quando visíveis, perspectiva consistente e fundo bem integrado.',
+  'RESTRIÇÕES: não trocar rostos; não misturar feições entre pessoas; não duplicar nem remover sujeitos; não criar pessoas ou pets extras; não mudar gênero, idade aparente, etnia, cor da pele ou características marcantes; não afinar ou engordar o corpo sem pedido; não adicionar tatuagens, piercings, óculos, barba, acessórios ou objetos inexistentes sem necessidade do estilo.',
+  'SAÍDA: sem letras, legendas, molduras, logotipos, marcas d’água ou assinatura. Conteúdo apropriado para todas as idades.'
+].filter(Boolean).join(' ');
+
 let generated;
 try{
 const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:JSON.stringify({model,prompt,image:body.photo,response_format:'b64_json',size:'1024x1024'})});
