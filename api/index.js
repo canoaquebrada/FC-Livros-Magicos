@@ -2,12 +2,16 @@ import worker from '../dist/server/index.js';
 import { put, get, del } from '@vercel/blob';
 
 // Armazenamento persistente na Vercel.
-// Ao conectar um Vercel Blob privado ao projeto, a Vercel fornece
-// BLOB_READ_WRITE_TOKEN e todos os briefings/pedidos passam a sobreviver
-// a redeploys e reinicializações de Functions.
+// Suporta o modo atual recomendado pela Vercel (OIDC + BLOB_STORE_ID)
+// e também o token legado BLOB_READ_WRITE_TOKEN.
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
+const blobOidcToken = process.env.VERCEL_OIDC_TOKEN || '';
+const blobStoreId = process.env.BLOB_STORE_ID || '';
 const blobPrefix = 'fc-livros-magicos/';
-const storagePersistent = Boolean(blobToken);
+const storagePersistent = Boolean(blobToken || (blobOidcToken && blobStoreId));
+const blobAuth = blobToken
+  ? { token: blobToken }
+  : { oidcToken: blobOidcToken, storeId: blobStoreId };
 
 // Fallback apenas para desenvolvimento/preview sem Blob conectado.
 const memory = globalThis.__FC_LIVROS_BUCKET__ || (globalThis.__FC_LIVROS_BUCKET__ = new Map());
@@ -15,7 +19,7 @@ const memory = globalThis.__FC_LIVROS_BUCKET__ || (globalThis.__FC_LIVROS_BUCKET
 async function readBlobJson(pathname) {
   const result = await get(pathname, {
     access: 'private',
-    token: blobToken,
+    ...blobAuth,
     useCache: false,
   });
   if (!result) return null;
@@ -39,7 +43,7 @@ const BUCKET = {
     if (storagePersistent) {
       await put(blobPrefix + key, String(value), {
         access: 'private',
-        token: blobToken,
+        ...blobAuth,
         addRandomSuffix: false,
         allowOverwrite: true,
         contentType: 'application/json; charset=utf-8',
@@ -52,7 +56,7 @@ const BUCKET = {
 
   async delete(key) {
     if (storagePersistent) {
-      await del(blobPrefix + key, { token: blobToken });
+      await del(blobPrefix + key, blobAuth);
       return;
     }
     memory.delete(key);
