@@ -84,12 +84,12 @@ const commonStyles=[
 {key:'cartoon',emoji:'✨',title:'Arte ilustrada',sub:'Caricatura moderna'}
 ];
 const coupleStyles=[
-{key:'casal_jeans',emoji:'👖',title:'Casal Jeans',sub:'Jeans azul · romântico e moderno',visual:'visual-jeans'},
-{key:'casal_claras',emoji:'🤍',title:'Roupas Claras',sub:'Branco, bege e tons suaves · clean',visual:'visual-claras'},
-{key:'casal_coloridas',emoji:'🌈',title:'Roupas Coloridas',sub:'Cores elegantes · visual marcante',visual:'visual-coloridas'},
-{key:'casal_praia',emoji:'🏖️',title:'Praia Romântica',sub:'Luz natural · clima leve e apaixonado',visual:'visual-praia'},
-{key:'casal_social',emoji:'🖤',title:'Social Elegante',sub:'Look sofisticado · estúdio premium',visual:'visual-social'},
-{key:'casal_pb',emoji:'🎞️',title:'Preto & Branco',sub:'Editorial clássico · elegante e atemporal',visual:'visual-pb'}
+{key:'casal_jeans',title:'Casal Jeans',sub:'Jeans azul · romântico e moderno',image:'/api/style-image?name=jeans'},
+{key:'casal_claras',title:'Roupas Claras',sub:'Branco, bege e tons suaves · clean',image:'/api/style-image?name=claras'},
+{key:'casal_coloridas',title:'Roupas Coloridas',sub:'Cores elegantes · visual marcante',image:'/api/style-image?name=coloridas'},
+{key:'casal_praia',title:'Praia Romântica',sub:'Luz natural · clima leve e apaixonado',image:'/api/style-image?name=praia'},
+{key:'casal_social',title:'Social Elegante',sub:'Look sofisticado · estúdio premium',image:'/api/style-image?name=social'},
+{key:'casal_pb',title:'Preto & Branco',sub:'Editorial clássico · elegante e atemporal',image:'/api/style-image?name=pb'}
 ];
 const couplePoses=[
 {key:'1',title:'Posição 1',sub:'Abraço de pé',image:"https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/0ec800b7-c482-4dee-bf7f-8b7a716c6a5d/bf419c69-f9ff-44aa-a55c-9b8708c442b9/Realistic_professional_studio_couple_portrait_used_only_as_a.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiNzZlNTkyYmMxNjc1MDRhMiIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTAyNTU5Nn0.CjMq415Aekklv-78YsIfKpwEv5WxyNnLwx6mDCoHeD0"},
@@ -110,7 +110,7 @@ function renderStyles(){
  const list=type==='casal'?coupleStyles:commonStyles;
  $('#styleTitle').textContent=type==='casal'?'3. Escolha o estilo do casal':'3. Escolha o estilo';
  $('#styleSub').textContent=type==='casal'?'Escolha um dos 6 estilos profissionais. Depois selecione a pose do casal.':'A IA usará sua foto como referência principal.';
- $('#styleGrid').innerHTML=list.map(item=>type==='casal'?'<button class="choice coupleStyleCard" data-style="'+item.key+'"><div class="coupleStyleVisual '+item.visual+'">'+item.title.toUpperCase()+'</div><b>'+item.title+'</b><small>'+item.sub+'</small></button>':'<button class="choice" data-style="'+item.key+'"><span class="emoji">'+item.emoji+'</span><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');
+ $('#styleGrid').innerHTML=list.map(item=>type==='casal'?'<button class="choice coupleStyleCard" data-style="'+item.key+'"><img class="coupleStyleVisual" src="'+item.image+'" alt="'+item.title+'" loading="lazy"><b>'+item.title+'</b><small>'+item.sub+'</small></button>':'<button class="choice" data-style="'+item.key+'"><span class="emoji">'+item.emoji+'</span><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');
  style='';pose='';
  $('#poseBlock').classList.add('hidden');
  $('#generate').disabled=true;
