@@ -79,17 +79,19 @@ const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',heade
 if(!response.ok){
 const detail=(await response.text()).slice(0,800);
 console.error('QuackAPI image generation failed',response.status,detail);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
+await refundQuizGeneration(env,token,rateLimit);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(await quizGenerationStatus(env,token))},200,cookie);
 }
 generated=await response.json();
 }catch(error){
 console.error('QuackAPI image request failed',error&&error.message?error.message:error);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
+await refundQuizGeneration(env,token,rateLimit);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(await quizGenerationStatus(env,token))},200,cookie);
 }
 const item=generated&&generated.data&&generated.data[0];
-if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
-if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie)}
-if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie)}
+if(!item){await refundQuizGeneration(env,token,rateLimit);return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(await quizGenerationStatus(env,token))},200,cookie);}
+if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus({...rateLimit,allowed:true,reason:'accepted',retryAfterSeconds:0})},200,cookie)}
+if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus({...rateLimit,allowed:true,reason:'accepted',retryAfterSeconds:0})},200,cookie)}
 if(item.id){
 try{
 const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
@@ -97,11 +99,12 @@ if(imageResponse.ok){
 const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
 let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
 const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
-const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
+const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus({...rateLimit,allowed:true,reason:'accepted',retryAfterSeconds:0})},200,cookie);
 }
 }catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
 }
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie)}
+await refundQuizGeneration(env,token,rateLimit);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(await quizGenerationStatus(env,token))},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';

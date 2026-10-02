@@ -87,7 +87,8 @@ function renderLimit(data,waLink){
  if(data.mode==='allowed')text='✅ Gerações liberadas pelo atendimento, sem o limite automático.';
  else if(data.mode==='blocked')text='⛔ Novas gerações bloqueadas pelo atendimento.';
  else if(data.reason==='daily_limit')text='Você já usou suas 3 prévias gratuitas de hoje.';
- else if(data.reason==='cooldown')text='Aguarde '+Math.max(1,Math.ceil((data.retryAfterSeconds||0)/60))+' minuto(s) para gerar novamente.';
+ else if(data.reason==='accepted'&&Number.isFinite(data.remaining))text='✅ Prévia gerada. Você ainda tem '+data.remaining+' prévia'+(data.remaining===1?'':'s')+' gratuita'+(data.remaining===1?'':'s')+' hoje.';
+ else if(data.reason==='cooldown')text='A próxima geração ficará disponível em '+Math.max(1,Math.ceil((data.retryAfterSeconds||0)/60))+' minuto(s).';
  else if(Number.isFinite(data.remaining))text='Você tem '+data.remaining+' prévia'+(data.remaining===1?'':'s')+' gratuita'+(data.remaining===1?'':'s')+' restante'+(data.remaining===1?'':'s')+' hoje.';
  limitNote.textContent=text;
  limitNote.classList.toggle('blocked',data.allowed===false);
@@ -145,7 +146,7 @@ $$('[data-back]').forEach(b=>b.onclick=()=>show(Number(b.dataset.back)));
 $('#again').onclick=()=>location.reload();
 $('#generate').onclick=async()=>{if(busy||!photo||!type||!style)return;busy=true;$('#genError').classList.add('hidden');steps.slice(1).forEach(x=>x.classList.add('hidden'));$('#generating').classList.remove('hidden');const words=['Preservando seus traços e preparando o estilo escolhido.','Ajustando iluminação, cenário e composição.','Finalizando sua prévia personalizada...'];let wi=0;const timer=setInterval(()=>{$('#genText').textContent=words[Math.min(++wi,words.length-1)]},3500);
 try{const r=await fetch('/api/preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({photo,type,style,pose,customerName:$('#customerName').value.trim(),customerWhatsapp:$('#customerWhatsapp').value.trim()})});const data=await r.json();renderLimit(data.rateLimit,data.waLink);if(!r.ok){const error=new Error(data.error||'Não foi possível gerar a prévia.');error.waLink=data.waLink||'';throw error}clearInterval(timer);$('#generating').classList.add('hidden');$('#resultImage').src=data.preview;$('#demoNote').classList.toggle('hidden',!data.demo);if(data.waLink){$('#whatsapp').href=data.waLink;$('#whatsapp').classList.remove('hidden')}if(data.unlockWaLink||data.waLink){$('#unlock').href=data.unlockWaLink||data.waLink;$('#unlock').classList.remove('hidden')}$('#result').classList.remove('hidden')}
-catch(err){clearInterval(timer);$('#generating').classList.add('hidden');show(3);$('#genError').textContent=err.message;$('#genError').classList.remove('hidden');if(err.waLink){limitWa.href=err.waLink;limitWa.classList.remove('hidden')}}finally{busy=false}};
+catch(err){clearInterval(timer);$('#generating').classList.add('hidden');show(3);const isLimit=/Aguarde|prévias gratuitas|bloqueadas pelo atendimento/i.test(err.message||'');$('#genError').textContent=isLimit?'':err.message;$('#genError').classList.toggle('hidden',isLimit);if(err.waLink){limitWa.href=err.waLink;limitWa.classList.remove('hidden')}}finally{busy=false}};
 })();
 </script>
 </body>

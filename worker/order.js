@@ -84,7 +84,14 @@ async function consumeQuizGeneration(env,sessionToken){
   const now=new Date().toISOString();
   const next={...record,count:(Number(record.count)||0)+1,lastAt:now,updatedAt:now};
   await env.BUCKET.put(quizGenerationKey(record.sessionToken),JSON.stringify(next),{httpMetadata:{contentType:'application/json'}});
-  return quizGenerationStatusFromRecord(next);
+  return {...status,allowed:true,reason:'accepted',count:next.count,remaining:status.remaining===null?null:Math.max(0,(Number(status.remaining)||0)-1),reservationAt:now,previousLastAt:record.lastAt||''};
+}
+async function refundQuizGeneration(env,sessionToken,reservation){
+  if(!reservation||reservation.reason!=='accepted')return;
+  const record=await readQuizGenerationControl(env,sessionToken);
+  if(record.lastAt!==reservation.reservationAt)return;
+  const next={...record,count:Math.max(0,(Number(record.count)||0)-1),lastAt:reservation.previousLastAt||'',updatedAt:new Date().toISOString()};
+  await env.BUCKET.put(quizGenerationKey(record.sessionToken),JSON.stringify(next),{httpMetadata:{contentType:'application/json'}});
 }
 async function setQuizGenerationMode(env,sessionToken,mode){
   const cleanMode=['auto','allowed','blocked'].includes(mode)?mode:'auto';
