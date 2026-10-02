@@ -17,6 +17,12 @@ if(url.pathname==='/quiz'||url.pathname==='/quiz/'){
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
 if(request.method==='GET'){await registerVisit(env,token)}
 return new Response(request.method==='HEAD'?null:QUIZ_HTML,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'same-origin','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://dnznrvs05pmza.cloudfront.net; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",...cookie}})}
+if(url.pathname==='/api/quiz-limit'){
+if(request.method!=='GET')return json({error:'Método não permitido'},405,cookie);
+const settings=await resolvedOrderSettings(env);
+const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
+const waLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent('Olá! Atingi o limite de prévias no site da FC Artes Digitais e gostaria de solicitar liberação para gerar novamente.'):'';
+return json({...await quizGenerationStatus(env,token),waLink},200,cookie)}
 if(url.pathname==='/api/preview'){
 if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
 const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
@@ -58,7 +64,12 @@ const unlockWaLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURICo
 const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira.com.br').replace(/\/+$/,'');
 const apiKey=cleanText(env.QUACKAPI_API_KEY);
 const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
-if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink,unlockWaLink},200,cookie);
+if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink,unlockWaLink,rateLimit:await quizGenerationStatus(env,token)},200,cookie);
+const rateLimit=await consumeQuizGeneration(env,token);
+if(!rateLimit.allowed){
+  const error=rateLimit.reason==='blocked'?'As novas gerações foram bloqueadas pelo atendimento. Fale conosco no WhatsApp para solicitar liberação.':rateLimit.reason==='daily_limit'?'Você já usou suas 3 prévias gratuitas de hoje. Fale conosco no WhatsApp para continuar.':'Aguarde '+Math.max(1,Math.ceil((rateLimit.retryAfterSeconds||0)/60))+' minuto(s) antes de gerar outra prévia.';
+  return json({error,rateLimit,waLink,unlockWaLink},429,cookie);
+}
 const poseInstruction=body.type==='casal'?' '+couplePoseMap[poseKey]:'';
 const styleInstruction=(couplePromptMap[body.style]||'Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante.')+poseInstruction;
 const prompt='EDITE a foto enviada e devolva UMA NOVA IMAGEM. Use a foto exclusivamente como referência visual e preserve rigorosamente a identidade real da pessoa ou pet: rosto, idade aparente, formato facial, cabelo, olhos, nariz, boca, tom de pele, altura relativa e demais características. '+styleInstruction+' Não adicionar letras, logotipos ou marca d água. Não trocar a pessoa por outra, não duplicar ninguém e não criar pessoas extras. Conteúdo apropriado para todas as idades.';
@@ -68,17 +79,17 @@ const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',heade
 if(!response.ok){
 const detail=(await response.text()).slice(0,800);
 console.error('QuackAPI image generation failed',response.status,detail);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink,unlockWaLink},200,cookie);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink,unlockWaLink,rateLimit},200,cookie);
 }
 generated=await response.json();
 }catch(error){
 console.error('QuackAPI image request failed',error&&error.message?error.message:error);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink,unlockWaLink},200,cookie);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink,unlockWaLink,rateLimit},200,cookie);
 }
 const item=generated&&generated.data&&generated.data[0];
-if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink},200,cookie);
-if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
-if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie)}
+if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink,rateLimit},200,cookie);
+if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit},200,cookie)}
+if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit},200,cookie)}
 if(item.id){
 try{
 const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
@@ -86,11 +97,11 @@ if(imageResponse.ok){
 const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
 let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
 const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
-const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink},200,cookie);
+const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit},200,cookie);
 }
 }catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
 }
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink,unlockWaLink},200,cookie)}
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink,unlockWaLink,rateLimit},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
@@ -153,6 +164,17 @@ let body;try{body=await request.json()}catch{return json({error:'Dados inválido
 const record=await updateOrderStatus(env,url.searchParams.get('code')||'',body&&body.status);
 if(!record)return json({error:'Pedido ou status inválido'},400,cookie);
 return json({ok:true,code:record.code,status:record.status,updatedAt:record.updatedAt},200,cookie)}
+if(url.pathname==='/api/admin/quiz-access'){
+const settings=await resolvedOrderSettings(env);
+if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
+if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
+let body;try{body=await request.json()}catch{return json({error:'Dados inválidos'},400,cookie)}
+const sessionToken=cleanText(body&&body.sessionToken).slice(0,64),mode=cleanText(body&&body.mode);
+if(!/^[a-f0-9]{64}$/.test(sessionToken)||!['auto','allowed','blocked'].includes(mode))return json({error:'Controle inválido'},400,cookie);
+const access=await setQuizGenerationMode(env,sessionToken,mode);
+return json({ok:true,access},200,cookie)}
 if(url.pathname==='/api/admin/settings'){
 const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
@@ -216,7 +238,7 @@ const view=url.searchParams.get('view')||'dashboard';
 if(view==='quiz-clients'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
-return new Response(quizClientsAdminHtml(await quizPreviewIndex(env),settings,settings.admin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
+return new Response(quizClientsAdminHtml(await quizClientsWithGenerationAccess(env),settings,settings.admin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(view==='previews'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
