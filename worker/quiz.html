@@ -118,8 +118,8 @@ $('#file').addEventListener('change',async e=>{const f=e.target.files?.[0];$('#f
 $('#to2').onclick=()=>show(2);
 $('#typeGrid').addEventListener('click',e=>{const b=e.target.closest('[data-type]');if(!b)return;type=b.dataset.type;$$('[data-type]').forEach(x=>x.classList.toggle('selected',x===b));renderStyles();$('#to3').disabled=false});
 $('#to3').onclick=()=>{renderStyles();show(3)};
-$('#styleGrid').addEventListener('click',e=>{const b=e.target.closest('[data-style]');if(!b)return;style=b.dataset.style;$('[data-style]').forEach(x=>x.classList.toggle('selected',x===b));if(type==='casal'){renderPoses()}else{$('#generate').disabled=false}});
-$('#poseGrid').addEventListener('click',e=>{const b=e.target.closest('[data-pose]');if(!b)return;pose=b.dataset.pose;$('[data-pose]').forEach(x=>x.classList.toggle('selected',x===b));$('#generate').disabled=false});
+$('#styleGrid').addEventListener('click',e=>{const b=e.target.closest('[data-style]');if(!b)return;style=b.dataset.style;$$('[data-style]').forEach(x=>x.classList.toggle('selected',x===b));if(type==='casal'){renderPoses()}else{$('#generate').disabled=false}});
+$('#poseGrid').addEventListener('click',e=>{const b=e.target.closest('[data-pose]');if(!b)return;pose=b.dataset.pose;$$('[data-pose]').forEach(x=>x.classList.toggle('selected',x===b));$('#generate').disabled=false});
 $$('[data-back]').forEach(b=>b.onclick=()=>show(Number(b.dataset.back)));
 $('#again').onclick=()=>location.reload();
 $('#generate').onclick=async()=>{if(busy||!photo||!type||!style)return;busy=true;$('#genError').classList.add('hidden');steps.slice(1).forEach(x=>x.classList.add('hidden'));$('#generating').classList.remove('hidden');const words=['Preservando seus traços e preparando o estilo escolhido.','Ajustando iluminação, cenário e composição.','Finalizando sua prévia personalizada...'];let wi=0;const timer=setInterval(()=>{$('#genText').textContent=words[Math.min(++wi,words.length-1)]},3500);
