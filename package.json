@@ -9,6 +9,7 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
-    "@vercel/blob": "2.8.0"
+    "@vercel/blob": "2.8.0",
+    "@vercel/oidc": "3.8.9"
   }
 }

@@ -1,67 +1,81 @@
 import worker from '../dist/server/index.js';
 import { put, get, del } from '@vercel/blob';
+import { getVercelOidcToken } from '@vercel/oidc';
 
 // Armazenamento persistente na Vercel.
-// Suporta o modo atual recomendado pela Vercel (OIDC + BLOB_STORE_ID)
-// e também o token legado BLOB_READ_WRITE_TOKEN.
+// Usa OIDC + BLOB_STORE_ID (modo recomendado atual) e mantém compatibilidade
+// com o token legado BLOB_READ_WRITE_TOKEN.
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
-const blobOidcToken = process.env.VERCEL_OIDC_TOKEN || '';
 const blobStoreId = process.env.BLOB_STORE_ID || '';
 const blobPrefix = 'fc-livros-magicos/';
-const storagePersistent = Boolean(blobToken || (blobOidcToken && blobStoreId));
-const blobAuth = blobToken
-  ? { token: blobToken }
-  : { oidcToken: blobOidcToken, storeId: blobStoreId };
 
-// Fallback apenas para desenvolvimento/preview sem Blob conectado.
+// Fallback apenas para desenvolvimento/ambientes sem Blob conectado.
 const memory = globalThis.__FC_LIVROS_BUCKET__ || (globalThis.__FC_LIVROS_BUCKET__ = new Map());
 
-async function readBlobJson(pathname) {
-  const result = await get(pathname, {
-    access: 'private',
-    ...blobAuth,
-    useCache: false,
-  });
-  if (!result) return null;
-  const raw = await new Response(result.stream).text();
-  return JSON.parse(raw);
+async function resolveBlobAuth() {
+  if (blobToken) return { token: blobToken };
+  if (!blobStoreId) return null;
+  try {
+    const oidcToken = await getVercelOidcToken();
+    return oidcToken ? { oidcToken, storeId: blobStoreId } : null;
+  } catch (error) {
+    console.error('Vercel Blob OIDC unavailable', error && error.message ? error.message : error);
+    return null;
+  }
 }
 
-const BUCKET = {
-  async get(key) {
-    if (storagePersistent) {
-      const pathname = blobPrefix + key;
-      const value = await readBlobJson(pathname);
-      return value === null ? null : { json: async () => value };
-    }
-    if (!memory.has(key)) return null;
-    const raw = memory.get(key);
-    return { json: async () => JSON.parse(raw) };
-  },
+function createBucket(blobAuth) {
+  const storagePersistent = Boolean(blobAuth);
 
-  async put(key, value) {
-    if (storagePersistent) {
-      await put(blobPrefix + key, String(value), {
-        access: 'private',
-        ...blobAuth,
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: 'application/json; charset=utf-8',
-        cacheControlMaxAge: 0,
-      });
-      return;
-    }
-    memory.set(key, String(value));
-  },
+  async function readBlobJson(pathname) {
+    const result = await get(pathname, {
+      access: 'private',
+      ...blobAuth,
+      useCache: false,
+    });
+    if (!result) return null;
+    const raw = await new Response(result.stream).text();
+    return JSON.parse(raw);
+  }
 
-  async delete(key) {
-    if (storagePersistent) {
-      await del(blobPrefix + key, blobAuth);
-      return;
-    }
-    memory.delete(key);
-  },
-};
+  return {
+    storagePersistent,
+
+    async get(key) {
+      if (storagePersistent) {
+        const pathname = blobPrefix + key;
+        const value = await readBlobJson(pathname);
+        return value === null ? null : { json: async () => value };
+      }
+      if (!memory.has(key)) return null;
+      const raw = memory.get(key);
+      return { json: async () => JSON.parse(raw) };
+    },
+
+    async put(key, value) {
+      if (storagePersistent) {
+        await put(blobPrefix + key, String(value), {
+          access: 'private',
+          ...blobAuth,
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType: 'application/json; charset=utf-8',
+          cacheControlMaxAge: 0,
+        });
+        return;
+      }
+      memory.set(key, String(value));
+    },
+
+    async delete(key) {
+      if (storagePersistent) {
+        await del(blobPrefix + key, blobAuth);
+        return;
+      }
+      memory.delete(key);
+    },
+  };
+}
 
 function requestBody(req) {
   if (req.method === 'GET' || req.method === 'HEAD') return undefined;
@@ -101,10 +115,13 @@ export default async function handler(req, res) {
       body,
     });
 
+    const blobAuth = await resolveBlobAuth();
+    const bucket = createBucket(blobAuth);
+
     const response = await worker.fetch(request, {
       ...process.env,
-      BUCKET,
-      STORAGE_PERSISTENT: storagePersistent ? '1' : '',
+      BUCKET: bucket,
+      STORAGE_PERSISTENT: bucket.storagePersistent ? '1' : '',
     });
     res.statusCode = response.status;
 
