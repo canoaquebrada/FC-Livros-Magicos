@@ -53,7 +53,7 @@ async function quizPreviewIndex(env){
 const QUIZ_DAILY_GENERATION_LIMIT=3;
 const QUIZ_GENERATION_COOLDOWN_MS=3*60*1000;
 function quizGenerationDayKey(){return new Date(Date.now()-3*60*60*1000).toISOString().slice(0,10)}
-function quizGenerationKey(sessionToken){return 'quiz-generation-control/'+cleanText(sessionToken).slice(0,64)+'.json'}
+function quizGenerationKey(sessionToken){return 'quiz-generation-control-v2/'+cleanText(sessionToken).slice(0,64)+'.json'}
 async function readQuizGenerationControl(env,sessionToken){
   const token=cleanText(sessionToken).slice(0,64),day=quizGenerationDayKey();
   if(!env||!env.BUCKET||!token)return {sessionToken:token,day,count:0,lastAt:'',mode:'auto',updatedAt:''};
