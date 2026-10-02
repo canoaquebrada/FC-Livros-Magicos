@@ -73,6 +73,10 @@ function quizGenerationStatusFromRecord(record){
   return {...record,allowed:true,reason:'auto',remaining:Math.max(0,QUIZ_DAILY_GENERATION_LIMIT-count),retryAfterSeconds:0,dailyLimit:QUIZ_DAILY_GENERATION_LIMIT,cooldownSeconds:QUIZ_GENERATION_COOLDOWN_MS/1000};
 }
 async function quizGenerationStatus(env,sessionToken){return quizGenerationStatusFromRecord(await readQuizGenerationControl(env,sessionToken))}
+function publicQuizGenerationStatus(status){
+  const source=status||{};
+  return {count:Math.max(0,Number(source.count)||0),mode:['auto','allowed','blocked'].includes(source.mode)?source.mode:'auto',allowed:Boolean(source.allowed),reason:cleanText(source.reason)||'auto',remaining:source.remaining===null?null:Math.max(0,Number(source.remaining)||0),retryAfterSeconds:Math.max(0,Number(source.retryAfterSeconds)||0),dailyLimit:Math.max(1,Number(source.dailyLimit)||QUIZ_DAILY_GENERATION_LIMIT),cooldownSeconds:Math.max(0,Number(source.cooldownSeconds)||QUIZ_GENERATION_COOLDOWN_MS/1000)};
+}
 async function consumeQuizGeneration(env,sessionToken){
   const record=await readQuizGenerationControl(env,sessionToken);
   const status=quizGenerationStatusFromRecord(record);

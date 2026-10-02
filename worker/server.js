@@ -22,7 +22,7 @@ if(request.method!=='GET')return json({error:'Método não permitido'},405,cooki
 const settings=await resolvedOrderSettings(env);
 const storeNumber=cleanText(settings.whatsapp).replace(/[^0-9]/g,'');
 const waLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURIComponent('Olá! Atingi o limite de prévias no site da FC Artes Digitais e gostaria de solicitar liberação para gerar novamente.'):'';
-return json({...await quizGenerationStatus(env,token),waLink},200,cookie)}
+return json({...publicQuizGenerationStatus(await quizGenerationStatus(env,token)),waLink},200,cookie)}
 if(url.pathname==='/api/preview'){
 if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
 const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
@@ -64,11 +64,11 @@ const unlockWaLink=storeNumber?'https://wa.me/'+storeNumber+'?text='+encodeURICo
 const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira.com.br').replace(/\/+$/,'');
 const apiKey=cleanText(env.QUACKAPI_API_KEY);
 const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
-if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink,unlockWaLink,rateLimit:await quizGenerationStatus(env,token)},200,cookie);
+if(!apiKey)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'missing_key',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(await quizGenerationStatus(env,token))},200,cookie);
 const rateLimit=await consumeQuizGeneration(env,token);
 if(!rateLimit.allowed){
   const error=rateLimit.reason==='blocked'?'As novas gerações foram bloqueadas pelo atendimento. Fale conosco no WhatsApp para solicitar liberação.':rateLimit.reason==='daily_limit'?'Você já usou suas 3 prévias gratuitas de hoje. Fale conosco no WhatsApp para continuar.':'Aguarde '+Math.max(1,Math.ceil((rateLimit.retryAfterSeconds||0)/60))+' minuto(s) antes de gerar outra prévia.';
-  return json({error,rateLimit,waLink,unlockWaLink},429,cookie);
+  return json({error,rateLimit:publicQuizGenerationStatus(rateLimit),waLink,unlockWaLink},429,cookie);
 }
 const poseInstruction=body.type==='casal'?' '+couplePoseMap[poseKey]:'';
 const styleInstruction=(couplePromptMap[body.style]||'Transforme em '+typeLabel+' no estilo '+styleLabel+'. Mantenha aparência natural e comercial, iluminação profissional e composição elegante.')+poseInstruction;
@@ -79,17 +79,17 @@ const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',heade
 if(!response.ok){
 const detail=(await response.text()).slice(0,800);
 console.error('QuackAPI image generation failed',response.status,detail);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink,unlockWaLink,rateLimit},200,cookie);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'generation_failed',status:response.status,waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
 }
 generated=await response.json();
 }catch(error){
 console.error('QuackAPI image request failed',error&&error.message?error.message:error);
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink,unlockWaLink,rateLimit},200,cookie);
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'request_failed',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
 }
 const item=generated&&generated.data&&generated.data[0];
-if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink,rateLimit},200,cookie);
-if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit},200,cookie)}
-if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit},200,cookie)}
+if(!item)return json({preview:body.photo,demo:true,provider:'quackapi',reason:'empty_response',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
+if(typeof item.b64_json==='string'&&item.b64_json.length>50){const preview='data:image/jpeg;base64,'+item.b64_json;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie)}
+if(typeof item.url==='string'&&item.url){const preview=item.url;const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie)}
 if(item.id){
 try{
 const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
@@ -97,11 +97,11 @@ if(imageResponse.ok){
 const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());
 let binary='';for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
 const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
-const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit},200,cookie);
+const preview='data:'+contentType+';base64,'+btoa(binary);const saved=await saveQuizPreviewRecord(env,{sessionToken:token,customerName,customerWhatsapp,type:typeLabel,style:styleLabel,pose:body.type==='casal'?poseKey:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||'',status:'gerada'});return json({preview,demo:false,provider:'quackapi',model,revisedPrompt:item.revised_prompt||'',previewId:saved&&saved.id?saved.id:'',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie);
 }
 }catch(error){console.error('QuackAPI image content fetch failed',error&&error.message?error.message:error)}
 }
-return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink,unlockWaLink,rateLimit},200,cookie)}
+return json({preview:body.photo,demo:true,provider:'quackapi',reason:'unsupported_image_response',waLink,unlockWaLink,rateLimit:publicQuizGenerationStatus(rateLimit)},200,cookie)}
 if(url.pathname==='/api/draft'){
 if(!env.BUCKET)return json({error:'Salvamento indisponível'},503,cookie);
 const key='briefings/'+token+'.json';
