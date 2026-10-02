@@ -1,5 +1,5 @@
 import worker from '../dist/server/index.js';
-import { put, get, del } from '@vercel/blob';
+import { put, get, del, list } from '@vercel/blob';
 import { getVercelOidcToken } from '@vercel/oidc';
 
 // Armazenamento persistente na Vercel.
@@ -73,6 +73,37 @@ function createBucket(blobAuth) {
         return;
       }
       memory.delete(key);
+    },
+
+    async list(prefix, limit = 500) {
+      const cleanPrefix = String(prefix || '');
+      const max = Math.max(1, Math.min(500, Number(limit) || 500));
+      if (storagePersistent) {
+        const items = [];
+        let cursor;
+        do {
+          const page = await list({
+            ...blobAuth,
+            prefix: blobPrefix + cleanPrefix,
+            limit: Math.min(1000, max - items.length),
+            cursor,
+          });
+          for (const blob of page.blobs || []) {
+            if (items.length >= max) break;
+            const pathname = String(blob.pathname || '');
+            items.push({
+              key: pathname.startsWith(blobPrefix) ? pathname.slice(blobPrefix.length) : pathname,
+              uploadedAt: blob.uploadedAt || null,
+            });
+          }
+          cursor = page.hasMore && items.length < max ? page.cursor : undefined;
+        } while (cursor && items.length < max);
+        return items;
+      }
+      return [...memory.keys()]
+        .filter(key => String(key).startsWith(cleanPrefix))
+        .slice(0, max)
+        .map(key => ({ key: String(key), uploadedAt: null }));
     },
   };
 }

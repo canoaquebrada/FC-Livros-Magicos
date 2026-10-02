@@ -28,10 +28,52 @@ async function registerFunnelStep(env,sessionToken,step){if(!env||!env.BUCKET||!
 async function registerFunnelOrder(env,sessionToken){if(!env||!env.BUCKET||!sessionToken)return funnelStats(env);await registerFunnelStep(env,sessionToken,4);const markerKey='analytics/funnel-sessions/'+sessionToken+'.json';const markerObject=await env.BUCKET.get(markerKey);let marker={maxStep:4,ordered:false};if(markerObject){try{const saved=await markerObject.json();marker={maxStep:Math.max(4,Number(saved&&saved.maxStep)||0),ordered:Boolean(saved&&saved.ordered)}}catch{}}if(marker.ordered)return funnelStats(env);const stats=await funnelStats(env);stats.orders=(Number(stats.orders)||0)+1;marker.ordered=true;await env.BUCKET.put('analytics/funnel.json',JSON.stringify(stats),{httpMetadata:{contentType:'application/json'}});await env.BUCKET.put(markerKey,JSON.stringify(marker),{httpMetadata:{contentType:'application/json'}});return stats}
 async function orderIndex(env){const object=await env.BUCKET.get('orders/index.json');if(!object)return [];try{const list=await object.json();return Array.isArray(list)?list:[]}catch{return []}}
 async function draftIndex(env){const object=await env.BUCKET.get('briefings/index.json');if(!object)return [];try{const list=await object.json();return Array.isArray(list)?list:[]}catch{return []}}
-async function quizPreviewIndex(env){if(!env||!env.BUCKET)return [];const object=await env.BUCKET.get('quiz-previews/index.json');if(!object)return [];try{const list=await object.json();return Array.isArray(list)?list:[]}catch{return []}}
-async function saveQuizPreviewRecord(env,record){if(!env||!env.BUCKET)return null;const now=new Date().toISOString();const id=orderCleanCode(record&&record.id)||orderCode();const saved={id,createdAt:record&&record.createdAt?record.createdAt:now,sessionToken:cleanText(record&&record.sessionToken).slice(0,64),type:cleanText(record&&record.type).slice(0,60),style:cleanText(record&&record.style).slice(0,100),model:cleanText(record&&record.model).slice(0,100),provider:cleanText(record&&record.provider).slice(0,40)||'quackapi',original:cleanText(record&&record.original),preview:cleanText(record&&record.preview),revisedPrompt:cleanText(record&&record.revisedPrompt).slice(0,4000),status:cleanText(record&&record.status).slice(0,30)||'gerada'};await env.BUCKET.put('quiz-previews/'+id+'.json',JSON.stringify(saved),{httpMetadata:{contentType:'application/json'}});const list=await quizPreviewIndex(env);const item={id:saved.id,createdAt:saved.createdAt,type:saved.type,style:saved.style,model:saved.model,provider:saved.provider,status:saved.status,hasOriginal:Boolean(saved.original),hasPreview:Boolean(saved.preview)};const next=[item,...list.filter(entry=>entry&&entry.id!==id)].slice(0,500);await env.BUCKET.put('quiz-previews/index.json',JSON.stringify(next),{httpMetadata:{contentType:'application/json'}});return item}
+async function quizPreviewIndex(env){
+  if(!env||!env.BUCKET)return [];
+  if(typeof env.BUCKET.list==='function'){
+    try{
+      const entries=await env.BUCKET.list('quiz-preview-index/',500);
+      if(entries&&entries.length){
+        const items=(await Promise.all(entries.map(async entry=>{
+          try{
+            const object=await env.BUCKET.get(entry.key);
+            if(!object)return null;
+            const item=await object.json();
+            return item&&item.id?item:null;
+          }catch{return null}
+        }))).filter(Boolean);
+        return items.sort((a,b)=>new Date(b.createdAt||0).getTime()-new Date(a.createdAt||0).getTime()).slice(0,500);
+      }
+    }catch{}
+  }
+  const legacy=await env.BUCKET.get('quiz-previews/index.json');
+  if(!legacy)return [];
+  try{const list=await legacy.json();return Array.isArray(list)?list:[]}catch{return []}
+}
+async function saveQuizPreviewRecord(env,record){
+  if(!env||!env.BUCKET)return null;
+  const now=new Date().toISOString();
+  const id=orderCleanCode(record&&record.id)||orderCode();
+  const saved={id,createdAt:record&&record.createdAt?record.createdAt:now,sessionToken:cleanText(record&&record.sessionToken).slice(0,64),type:cleanText(record&&record.type).slice(0,60),style:cleanText(record&&record.style).slice(0,100),model:cleanText(record&&record.model).slice(0,100),provider:cleanText(record&&record.provider).slice(0,40)||'quackapi',original:cleanText(record&&record.original),preview:cleanText(record&&record.preview),revisedPrompt:cleanText(record&&record.revisedPrompt).slice(0,4000),status:cleanText(record&&record.status).slice(0,30)||'gerada'};
+  const item={id:saved.id,createdAt:saved.createdAt,type:saved.type,style:saved.style,model:saved.model,provider:saved.provider,status:saved.status,hasOriginal:Boolean(saved.original),hasPreview:Boolean(saved.preview)};
+  await Promise.all([
+    env.BUCKET.put('quiz-previews/'+id+'.json',JSON.stringify(saved),{httpMetadata:{contentType:'application/json'}}),
+    env.BUCKET.put('quiz-preview-index/'+id+'.json',JSON.stringify(item),{httpMetadata:{contentType:'application/json'}})
+  ]);
+  return item;
+}
 async function readQuizPreviewRecord(env,id){const clean=orderCleanCode(id);if(!clean||!env||!env.BUCKET)return null;const object=await env.BUCKET.get('quiz-previews/'+clean+'.json');if(!object)return null;try{return await object.json()}catch{return null}}
-async function deleteQuizPreviewRecord(env,id){const clean=orderCleanCode(id);if(!clean||!env||!env.BUCKET)return false;const existing=await env.BUCKET.get('quiz-previews/'+clean+'.json');if(!existing)return false;if(typeof env.BUCKET.delete==='function')await env.BUCKET.delete('quiz-previews/'+clean+'.json');const list=await quizPreviewIndex(env);await env.BUCKET.put('quiz-previews/index.json',JSON.stringify(list.filter(item=>item&&item.id!==clean)),{httpMetadata:{contentType:'application/json'}});return true}
+async function deleteQuizPreviewRecord(env,id){
+  const clean=orderCleanCode(id);
+  if(!clean||!env||!env.BUCKET)return false;
+  const existing=await env.BUCKET.get('quiz-previews/'+clean+'.json');
+  if(!existing)return false;
+  if(typeof env.BUCKET.delete==='function')await Promise.all([
+    env.BUCKET.delete('quiz-previews/'+clean+'.json'),
+    env.BUCKET.delete('quiz-preview-index/'+clean+'.json')
+  ]);
+  return true;
+}
 async function saveDraftIndex(env,sessionToken,body){const now=new Date().toISOString();const data=(body&&body.data)||{};const list=await draftIndex(env);const previous=list.find(item=>item&&item.token===sessionToken);const step=Math.max(0,Math.min(4,Number(body&&body.step)||0));const item={token:sessionToken,cartId:sessionToken.slice(0,10).toUpperCase(),createdAt:previous&&previous.createdAt?previous.createdAt:now,updatedAt:now,step,progress:Math.round((step+1)/5*100),name:cleanText(data.name),whatsapp:cleanText(data.whatsapp),theme:cleanText(data.theme),hasPhoto:Boolean(data.photo)};const next=[item,...list.filter(entry=>entry&&entry.token!==sessionToken)].slice(0,500);await env.BUCKET.put('briefings/index.json',JSON.stringify(next),{httpMetadata:{contentType:'application/json'}});return item}
 async function removeDraftIndex(env,sessionToken){const list=await draftIndex(env);await env.BUCKET.put('briefings/index.json',JSON.stringify(list.filter(item=>item&&item.token!==sessionToken)),{httpMetadata:{contentType:'application/json'}})}
 function recoveryWhatsAppLink(cart,settings){const link=customerWhatsAppLink({whatsapp:cart&&cart.whatsapp});if(!link)return '';const name=cleanText(cart&&cart.name);const message='Olá'+(name?', '+name:'')+'! Você começou a criar um livro personalizado na '+settings.shop+' e o pedido não foi finalizado. Se quiser, posso te ajudar a concluir de onde você parou.';return link+'?text='+encodeURIComponent(message)}
