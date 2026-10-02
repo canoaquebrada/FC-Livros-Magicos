@@ -97,7 +97,27 @@ const couplePoses=[
 {key:'3',title:'Posição 3',sub:'Frente a frente',image:"https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/08a11f61-891e-4214-8f01-723ecc3a6c07/dfff3e9b-dbee-4094-9518-e52b8e3cb0d7/_couple_in_the_same_professional_studio__same_people__same_n.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiMGU0OGFiMzliODBjZGRhNCIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTA0MTg0OX0.GHF7FrVOyFwPmkCCeLIk-Yv3KfrFHlXa9M4x5e9NJiU"},
 {key:'4',title:'Posição 4',sub:'Abraço por trás',image:"https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/ee52e6c5-2308-4f56-8b64-891834f1dd67/f09d81de-3659-4be1-afa9-5c528ae8578d/_couple_in_the_same_professional_studio__same_people__same_n.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiMmRhNTM5M2JiMWY4NjVlMyIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTAyNTIxMX0.KZ6m0PcSywHvZXkHLOQr9_8TZ5X04hH6avMgc-3EPVY"},
 {key:'5',title:'Posição 5',sub:'Sentados juntos',image:"https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/39be823f-8308-49c5-ae5e-83b0bee2d6b0/55c6cf38-39ee-4c59-8ae7-0a88a2c59423/_couple_in_the_same_professional_studio__same_people__same_n.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiY2UyYTljMTZmYTE5ZmJiZSIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTAzMzM2Nn0.IvC32Stxta6g7CvAoa0mQQO1cO_6Mv6U3qsDvE1p1xc"}
-];$('#fileError').classList.add('hidden');if(!f)return;if(f.size>12*1024*1024){$('#fileError').textContent='Escolha uma foto com até 12 MB.';$('#fileError').classList.remove('hidden');return}try{photo=await resize(f);$('#photoPreview').src=photo;$('#drop').classList.add('has');$('#to2').disabled=false}catch(err){$('#fileError').textContent=err.message;$('#fileError').classList.remove('hidden')}});
+];
+function renderPoses(){
+ const block=$('#poseBlock');
+ if(type!=='casal'||!style){block.classList.add('hidden');pose='';return}
+ block.classList.remove('hidden');
+ $('#poseGrid').innerHTML=couplePoses.map(item=>'<button type="button" class="poseChoice" data-pose="'+item.key+'"><img class="poseThumb" src="'+item.image+'" alt="'+item.title+' · '+item.sub+'"><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');
+ pose='';
+ $('#generate').disabled=true;
+}
+function renderStyles(){
+ const list=type==='casal'?coupleStyles:commonStyles;
+ $('#styleTitle').textContent=type==='casal'?'3. Escolha o estilo do casal':'3. Escolha o estilo';
+ $('#styleSub').textContent=type==='casal'?'Escolha um dos 6 estilos profissionais. Depois selecione a pose do casal.':'A IA usará sua foto como referência principal.';
+ $('#styleGrid').innerHTML=list.map(item=>type==='casal'?'<button class="choice coupleStyleCard" data-style="'+item.key+'"><div class="coupleStyleVisual '+item.visual+'">'+item.title.toUpperCase()+'</div><b>'+item.title+'</b><small>'+item.sub+'</small></button>':'<button class="choice" data-style="'+item.key+'"><span class="emoji">'+item.emoji+'</span><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');
+ style='';pose='';
+ $('#poseBlock').classList.add('hidden');
+ $('#generate').disabled=true;
+}
+function show(n){steps.slice(1).forEach((el,i)=>el.classList.toggle('hidden',i+1!==n));$$('.progress span').forEach((el,i)=>el.classList.toggle('on',i<n));scrollTo({top:0,behavior:'smooth'})}
+async function resize(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onerror=()=>reject(new Error('Não foi possível ler a foto.'));r.onload=()=>{const img=new Image();img.onerror=()=>reject(new Error('Formato de imagem inválido.'));img.onload=()=>{const max=1500,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale)),c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.drawImage(img,0,0,w,h);resolve(c.toDataURL('image/jpeg',.88))};img.src=r.result};r.readAsDataURL(file)})}
+$('#file').addEventListener('change',async e=>{const f=e.target.files?.[0];$('#fileError').classList.add('hidden');if(!f)return;if(f.size>12*1024*1024){$('#fileError').textContent='Escolha uma foto com até 12 MB.';$('#fileError').classList.remove('hidden');return}try{photo=await resize(f);$('#photoPreview').src=photo;$('#drop').classList.add('has');$('#to2').disabled=false}catch(err){$('#fileError').textContent=err.message;$('#fileError').classList.remove('hidden')}});
 $('#to2').onclick=()=>show(2);
 $('#typeGrid').addEventListener('click',e=>{const b=e.target.closest('[data-type]');if(!b)return;type=b.dataset.type;$$('[data-type]').forEach(x=>x.classList.toggle('selected',x===b));renderStyles();$('#to3').disabled=false});
 $('#to3').onclick=()=>{renderStyles();show(3)};
