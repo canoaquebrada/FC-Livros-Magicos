@@ -298,6 +298,8 @@ const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Painel não configurado: defina ADMIN_TOKEN.'},503,cookie);
 if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
+const remove=orderCleanCode(url.searchParams.get('apagar')||'');
+if(remove)await deleteOrderRecord(env,remove);
 const view=url.searchParams.get('view')||'quiz-clients';
 if(view==='quiz-clients'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
@@ -310,8 +312,6 @@ return new Response(previewAdminHtml(await quizPreviewIndex(env),settings,settin
 if(view==='config'){
 const info={aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI_API_KEY))};
 return new Response(adminSettingsHtml(settings,settings.admin,info),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
-const remove=orderCleanCode(url.searchParams.get('apagar')||'');
-if(remove)await deleteOrderRecord(env,remove);
 return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin,await draftIndex(env),await visitStats(env),await funnelStats(env),await quizVisitStats(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(url.pathname.startsWith('/api/'))return json({error:'Não encontrado'},404);
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
