@@ -7,5 +7,12 @@
       "source": "/(.*)",
       "destination": "/api?__path=$1"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/quiz",
+      "permanent": false
+    }
   ]
 }
