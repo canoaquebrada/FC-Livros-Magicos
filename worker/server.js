@@ -200,7 +200,7 @@ if(/^https?:\/\//i.test(value)){const remote=await fetch(value);if(!remote.ok)re
 const match=value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
 if(!match)return json({error:'Formato de imagem inválido'},415,cookie);
 const bytes=Uint8Array.from(atob(match[2]),ch=>ch.charCodeAt(0));
-return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':match[1],'cache-control':'private, no-store','content-disposition':'inline',...cookie}})}
+return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':match[1],'cache-control':'private, no-store','content-disposition':url.searchParams.get('download')==='1'?'attachment; filename="fc-previa-'+orderCleanCode(record.id||'foto')+'.jpg"':'inline',...cookie}})}
 if(url.pathname==='/api/admin/book'||url.pathname==='/api/admin/pdf'){
 const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
