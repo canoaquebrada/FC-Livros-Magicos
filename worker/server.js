@@ -196,7 +196,7 @@ if(!record)return json({error:'Prévia não encontrada'},404,cookie);
 const kind=url.searchParams.get('kind')==='original'?'original':'preview';
 const value=cleanText(record[kind]);
 if(!value)return json({error:'Imagem não encontrada'},404,cookie);
-if(/^https?:\/\//i.test(value)){const remote=await fetch(value);if(!remote.ok)return json({error:'Imagem indisponível'},502,cookie);const bytes=new Uint8Array(await remote.arrayBuffer());return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':remote.headers.get('content-type')||'image/jpeg','cache-control':'private, no-store','content-disposition':'inline',...cookie}})}
+if(/^https?:\/\//i.test(value)){const remote=await fetch(value);if(!remote.ok)return json({error:'Imagem indisponível'},502,cookie);const bytes=new Uint8Array(await remote.arrayBuffer());return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':remote.headers.get('content-type')||'image/jpeg','cache-control':'private, no-store','content-disposition':url.searchParams.get('download')==='1'?'attachment; filename="fc-previa-'+orderCleanCode(record.id||'foto')+'.jpg"':'inline',...cookie}})}
 const match=value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
 if(!match)return json({error:'Formato de imagem inválido'},415,cookie);
 const bytes=Uint8Array.from(atob(match[2]),ch=>ch.charCodeAt(0));
@@ -298,7 +298,7 @@ const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Painel não configurado: defina ADMIN_TOKEN.'},503,cookie);
 if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
 if(!env.BUCKET)return json({error:'Pedidos indisponíveis'},503,cookie);
-const view=url.searchParams.get('view')||'dashboard';
+const view=url.searchParams.get('view')||'quiz-clients';
 if(view==='quiz-clients'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
@@ -314,6 +314,7 @@ const remove=orderCleanCode(url.searchParams.get('apagar')||'');
 if(remove)await deleteOrderRecord(env,remove);
 return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin,await draftIndex(env),await visitStats(env),await funnelStats(env),await quizVisitStats(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(url.pathname.startsWith('/api/'))return json({error:'Não encontrado'},404);
+if(url.pathname==='/'&&['GET','HEAD'].includes(request.method))return Response.redirect(new URL('/quiz',url),302);
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
 const path=url.pathname.length>1?(url.pathname.replace(/\/+$/,'')||'/'):url.pathname;
 const route=ROUTES.get(path);
