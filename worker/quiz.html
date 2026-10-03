@@ -52,7 +52,7 @@
 <h2 class="stepTitle" id="styleTitle">3. Escolha o estilo</h2>
 <p class="stepSub" id="styleSub">A IA usará sua foto como referência principal.</p>
 <div class="grid" id="styleGrid"></div><div class="poseBlock hidden" id="poseBlock"><h3 class="poseTitle">Escolha a posição</h3><p class="poseSub">Selecione uma das 5 poses do catálogo.</p><div class="poseGrid" id="poseGrid"></div></div>
-<div class="leadBox"><strong>Identifique sua prévia (opcional)</strong><p>Seu nome e WhatsApp servem apenas para localizar esta prévia e facilitar o atendimento do seu pedido.</p><div class="leadGrid"><label>Seu nome<input id="customerName" maxlength="80" autocomplete="name" placeholder="Ex.: Maria"></label><label>Seu WhatsApp<input id="customerWhatsapp" maxlength="24" inputmode="tel" autocomplete="tel" placeholder="Ex.: (85) 99999-9999"></label></div></div>
+<div class="leadBox"><strong>Identifique sua prévia</strong><p>Informe seu WhatsApp para gerar a prévia. Seu nome é opcional e ajuda no atendimento.</p><div class="leadGrid"><label>Seu nome <small>(opcional)</small><input id="customerName" maxlength="80" autocomplete="name" placeholder="Ex.: Maria"></label><label>Seu WhatsApp <b>* obrigatório</b><input id="customerWhatsapp" maxlength="24" inputmode="tel" autocomplete="tel" placeholder="Ex.: (85) 99999-9999" required aria-required="true" aria-describedby="whatsappAlert"></label></div><div id="whatsappAlert" class="error hidden" role="alert">Informe um WhatsApp válido com DDD para gerar a prévia.</div></div>
 <div class="limitBox" id="limitNote">Você pode gerar até 3 prévias gratuitas por dia.</div><a class="btn whatsappBtn limitWa hidden" target="_blank" rel="noopener" id="limitWa">💬 Pedir liberação no WhatsApp</a>
 <div id="genError" class="error hidden"></div>
 <div class="actions"><button class="btn secondary" data-back="2">← Voltar</button><button class="btn primary" id="generate" disabled>✨ Gerar minha prévia</button></div>
@@ -81,6 +81,19 @@
 let photo='',type='',style='',pose='',busy=false;
 const steps=[null,$('#step1'),$('#step2'),$('#step3')];
 const limitNote=$('#limitNote'),limitWa=$('#limitWa');
+const whatsappInput=$('#customerWhatsapp'),whatsappAlert=$('#whatsappAlert');
+function whatsappDigits(){return String(whatsappInput.value||'').replace(/\D/g,'')}
+function validWhatsapp(){const digits=whatsappDigits();return digits.length>=10&&digits.length<=15}
+function showWhatsappError(message){
+ whatsappAlert.textContent=message||'Informe um WhatsApp válido com DDD para gerar a prévia.';
+ whatsappAlert.classList.remove('hidden');
+ whatsappInput.setAttribute('aria-invalid','true');
+ whatsappInput.focus();
+ whatsappInput.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function clearWhatsappError(){whatsappAlert.classList.add('hidden');whatsappInput.removeAttribute('aria-invalid')}
+whatsappInput.addEventListener('input',()=>{if(validWhatsapp())clearWhatsappError()});
+
 function renderLimit(data,waLink){
  if(!data)return;
  let text='Você pode gerar até 3 prévias gratuitas por dia.';
@@ -144,7 +157,7 @@ $('#styleGrid').addEventListener('click',e=>{const b=e.target.closest('[data-sty
 $('#poseGrid').addEventListener('click',e=>{const b=e.target.closest('[data-pose]');if(!b)return;pose=b.dataset.pose;$$('[data-pose]').forEach(x=>x.classList.toggle('selected',x===b));$('#generate').disabled=false});
 $$('[data-back]').forEach(b=>b.onclick=()=>show(Number(b.dataset.back)));
 $('#again').onclick=()=>location.reload();
-$('#generate').onclick=async()=>{if(busy||!photo||!type||!style)return;busy=true;$('#genError').classList.add('hidden');steps.slice(1).forEach(x=>x.classList.add('hidden'));$('#generating').classList.remove('hidden');const words=['Preservando seus traços e preparando o estilo escolhido.','Ajustando iluminação, cenário e composição.','Finalizando sua prévia personalizada...'];let wi=0;const timer=setInterval(()=>{$('#genText').textContent=words[Math.min(++wi,words.length-1)]},3500);
+$('#generate').onclick=async()=>{if(busy||!photo||!type||!style)return;if(!validWhatsapp()){showWhatsappError('Informe um WhatsApp válido com DDD para gerar a prévia.');return}clearWhatsappError();busy=true;$('#genError').classList.add('hidden');steps.slice(1).forEach(x=>x.classList.add('hidden'));$('#generating').classList.remove('hidden');const words=['Preservando seus traços e preparando o estilo escolhido.','Ajustando iluminação, cenário e composição.','Finalizando sua prévia personalizada...'];let wi=0;const timer=setInterval(()=>{$('#genText').textContent=words[Math.min(++wi,words.length-1)]},3500);
 try{const r=await fetch('/api/preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({photo,type,style,pose,customerName:$('#customerName').value.trim(),customerWhatsapp:$('#customerWhatsapp').value.trim()})});const data=await r.json();renderLimit(data.rateLimit,data.waLink);if(!r.ok){const error=new Error(data.error||'Não foi possível gerar a prévia.');error.waLink=data.waLink||'';throw error}clearInterval(timer);$('#generating').classList.add('hidden');$('#resultImage').src=data.preview;$('#demoNote').classList.toggle('hidden',!data.demo);if(data.waLink){$('#whatsapp').href=data.waLink;$('#whatsapp').classList.remove('hidden')}if(data.unlockWaLink||data.waLink){$('#unlock').href=data.unlockWaLink||data.waLink;$('#unlock').classList.remove('hidden')}$('#result').classList.remove('hidden')}
 catch(err){clearInterval(timer);$('#generating').classList.add('hidden');show(3);const isLimit=/Aguarde|prévias gratuitas|bloqueadas pelo atendimento/i.test(err.message||'');$('#genError').textContent=isLimit?'':err.message;$('#genError').classList.toggle('hidden',isLimit);if(err.waLink){limitWa.href=err.waLink;limitWa.classList.remove('hidden')}}finally{busy=false}};
 })();
