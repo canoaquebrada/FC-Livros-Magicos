@@ -101,6 +101,7 @@ const customerName=cleanText(body.customerName).slice(0,80);
 let customerWhatsapp=cleanText(body.customerWhatsapp).replace(/[^0-9]/g,'');
 if((customerWhatsapp.length===10||customerWhatsapp.length===11)&&!customerWhatsapp.startsWith('55'))customerWhatsapp='55'+customerWhatsapp;
 if(customerWhatsapp&&(customerWhatsapp.length<12||customerWhatsapp.length>15))customerWhatsapp='';
+if(!customerWhatsapp)return json({error:'Informe um WhatsApp válido com DDD para gerar a prévia.'},400,cookie);
 
 if(!typeLabel||!styleLabel||!allowedStyle||!photoOk(body.photo,8000000)||(body.type==='casal'&&!couplePoseMap[poseKey]))return json({error:'Escolha uma foto, um estilo e uma posição válidos.'},400,cookie);
 const settings=await resolvedOrderSettings(env);
