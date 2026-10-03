@@ -13,7 +13,7 @@ const quizResponse=await app.default.fetch(new Request('https://example.test/qui
 const quizHtml=await quizResponse.text();
 for(const style of ['Casal Jeans','Roupas Claras','Roupas Coloridas','Praia Romântica','Social Elegante','Preto & Branco'])assert(quizHtml.includes(style),'estilo de casal ausente: '+style);
 assert(quizHtml.includes('Escolha a posição'),'quiz explica a seleção das poses do casal');
-assert(quizHtml.includes('customerName')&&quizHtml.includes('customerWhatsapp')&&quizHtml.includes('Identifique sua prévia'),'quiz coleta contato opcional para atendimento');
+assert(quizHtml.includes('customerName')&&quizHtml.includes('customerWhatsapp')&&quizHtml.includes('* obrigatório')&&quizHtml.includes('whatsappAlert'),'quiz exige WhatsApp para gerar prévia');
 assert(quizHtml.includes('/api/quiz-limit')&&quizHtml.includes('limitNote')&&quizHtml.includes('Pedir liberação no WhatsApp'),'quiz exibe limite e pedido de liberação');
 assert((quizHtml.match(/https:\/\/dnznrvs05pmza\.cloudfront\.net\/gemini\//g)||[]).length>=5&&quizHtml.includes('poseThumb')&&quizHtml.includes('<img class=\"poseThumb\"'),'5 miniaturas 2K nítidas das posições do casal');
 await app.default.fetch(new Request('https://example.test/criar/historia',{headers:{Cookie:cookie}}),env);assert.equal(JSON.parse(items.get('analytics/visits.json')).total,1,'mesma sessão não duplica visita');const funnelHistory=JSON.parse(items.get('analytics/funnel.json'));assert.equal(funnelHistory.steps[0],1,'mesma sessão não duplica primeira etapa');assert.equal(funnelHistory.steps[1],1,'avanço para História registrado');await app.default.fetch(new Request('https://example.test/criar/historia',{headers:{Cookie:cookie}}),env);assert.equal(JSON.parse(items.get('analytics/funnel.json')).steps[1],1,'repetir etapa não duplica funil');const visitApi=await (await app.default.fetch(new Request('https://example.test/api/visits',{headers:{Cookie:cookie}}),env)).json();assert.equal(visitApi.total,1,'API pública de visitas');
@@ -40,10 +40,14 @@ await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,photo:
 // ---- Pedido enviado para o WhatsApp da loja ----
 const JPG='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
 for(const style of ['casal_jeans','casal_claras','casal_coloridas','casal_praia','casal_social','casal_pb']){
- const preview=await app.default.fetch(new Request('https://example.test/api/preview',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie},body:JSON.stringify({type:'casal',style,pose:'1',photo:JPG})}),env);
+ const preview=await app.default.fetch(new Request('https://example.test/api/preview',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie},body:JSON.stringify({type:'casal',style,pose:'1',photo:JPG,customerWhatsapp:'(85) 99999-9999'})}),env);
  assert.equal(preview.status,200,'preview aceita estilo '+style);
  const payload=await preview.json();assert.equal(payload.demo,true,'preview sem API usa demonstração '+style);
 }
+const previewWithoutWhatsapp=await app.default.fetch(new Request('https://example.test/api/preview',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie},body:JSON.stringify({type:'casal',style:'casal_jeans',pose:'1',photo:JPG})}),env);
+assert.equal(previewWithoutWhatsapp.status,400,'preview sem WhatsApp deve ser bloqueada');
+assert((await previewWithoutWhatsapp.json()).error.includes('WhatsApp'),'erro deve pedir WhatsApp');
+
 const complete={data:{age:'0 a 5 anos',photo:JPG,outfit:'nova',theme:'Dinossauros',feeling:'Coragem',style:'Aquarela',name:'Levi',gender:'Menino',years:'5',personality:'Curioso',objective:'Guardar esta fase',cast:[{kind:'Bichinho',name:'Mel',detail:'cachorro',photo:JPG}],language:'Português (BR)',dedicationTitle:'Para Levi',dedication:'Com amor',details:'A praia',whatsapp:'(85) 99999-9999'},step:4};
 await send({method:'PUT',headers,body:JSON.stringify(complete)},200,'briefing completo');
 const orderResponse=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(orderResponse.status,200,'criação do pedido');
