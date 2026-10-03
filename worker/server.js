@@ -314,7 +314,6 @@ const remove=orderCleanCode(url.searchParams.get('apagar')||'');
 if(remove)await deleteOrderRecord(env,remove);
 return new Response(painelHtml(await orderIndex(env),settings,settings.admin,url.origin,await draftIndex(env),await visitStats(env),await funnelStats(env),await quizVisitStats(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(url.pathname.startsWith('/api/'))return json({error:'Não encontrado'},404);
-if(url.pathname==='/'&&['GET','HEAD'].includes(request.method))return Response.redirect(new URL('/quiz',url),302);
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
 const path=url.pathname.length>1?(url.pathname.replace(/\/+$/,'')||'/'):url.pathname;
 const route=ROUTES.get(path);
