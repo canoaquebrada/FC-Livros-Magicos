@@ -20,6 +20,31 @@ const blobPrefix = 'fc-livros-magicos/';
 
 // Fallback apenas para desenvolvimento/ambientes sem Blob conectado.
 const memory = globalThis.__FC_LIVROS_BUCKET__ || (globalThis.__FC_LIVROS_BUCKET__ = new Map());
+const blobHealth = globalThis.__FC_LIVROS_BLOB_HEALTH__ || (globalThis.__FC_LIVROS_BLOB_HEALTH__ = { checkedAt: 0, ok: null, lastError: '' });
+
+async function usableBlobAuth(blobAuth) {
+  if (!blobAuth) return null;
+  const now = Date.now();
+  if (blobHealth.ok !== null && now - blobHealth.checkedAt < 60000) return blobHealth.ok ? blobAuth : null;
+  try {
+    await get(blobPrefix + 'analytics/visits.json', {
+      access: 'private',
+      ...blobAuth,
+      useCache: false,
+    });
+    blobHealth.ok = true;
+    blobHealth.lastError = '';
+    blobHealth.checkedAt = now;
+    return blobAuth;
+  } catch (error) {
+    blobHealth.ok = false;
+    blobHealth.checkedAt = now;
+    blobHealth.lastError = error && error.message ? error.message : String(error || '');
+    console.error('Vercel Blob unavailable; using temporary memory fallback:', blobHealth.lastError);
+    return null;
+  }
+}
+
 
 async function resolveBlobAuth() {
   if (blobToken) return { token: blobToken };
@@ -52,9 +77,13 @@ function createBucket(blobAuth) {
 
     async get(key) {
       if (storagePersistent) {
-        const pathname = blobPrefix + key;
-        const value = await readBlobJson(pathname);
-        return value === null ? null : { json: async () => value };
+        try {
+          const pathname = blobPrefix + key;
+          const value = await readBlobJson(pathname);
+          return value === null ? null : { json: async () => value };
+        } catch (error) {
+          console.error('Blob get failed; falling back to memory:', error && error.message ? error.message : error);
+        }
       }
       if (!memory.has(key)) return null;
       const raw = memory.get(key);
@@ -63,23 +92,31 @@ function createBucket(blobAuth) {
 
     async put(key, value) {
       if (storagePersistent) {
-        await put(blobPrefix + key, String(value), {
-          access: 'private',
-          ...blobAuth,
-          addRandomSuffix: false,
-          allowOverwrite: true,
-          contentType: 'application/json; charset=utf-8',
-          cacheControlMaxAge: 0,
-        });
-        return;
+        try {
+          await put(blobPrefix + key, String(value), {
+            access: 'private',
+            ...blobAuth,
+            addRandomSuffix: false,
+            allowOverwrite: true,
+            contentType: 'application/json; charset=utf-8',
+            cacheControlMaxAge: 0,
+          });
+          return;
+        } catch (error) {
+          console.error('Blob put failed; falling back to memory:', error && error.message ? error.message : error);
+        }
       }
       memory.set(key, String(value));
     },
 
     async delete(key) {
       if (storagePersistent) {
-        await del(blobPrefix + key, blobAuth);
-        return;
+        try {
+          await del(blobPrefix + key, blobAuth);
+          return;
+        } catch (error) {
+          console.error('Blob delete failed; falling back to memory:', error && error.message ? error.message : error);
+        }
       }
       memory.delete(key);
     },
@@ -88,26 +125,30 @@ function createBucket(blobAuth) {
       const cleanPrefix = String(prefix || '');
       const max = Math.max(1, Math.min(500, Number(limit) || 500));
       if (storagePersistent) {
-        const items = [];
-        let cursor;
-        do {
-          const page = await list({
-            ...blobAuth,
-            prefix: blobPrefix + cleanPrefix,
-            limit: Math.min(1000, max - items.length),
-            cursor,
-          });
-          for (const blob of page.blobs || []) {
-            if (items.length >= max) break;
-            const pathname = String(blob.pathname || '');
-            items.push({
-              key: pathname.startsWith(blobPrefix) ? pathname.slice(blobPrefix.length) : pathname,
-              uploadedAt: blob.uploadedAt || null,
+        try {
+          const items = [];
+          let cursor;
+          do {
+            const page = await list({
+              ...blobAuth,
+              prefix: blobPrefix + cleanPrefix,
+              limit: Math.min(1000, max - items.length),
+              cursor,
             });
-          }
-          cursor = page.hasMore && items.length < max ? page.cursor : undefined;
-        } while (cursor && items.length < max);
-        return items;
+            for (const blob of page.blobs || []) {
+              if (items.length >= max) break;
+              const pathname = String(blob.pathname || '');
+              items.push({
+                key: pathname.startsWith(blobPrefix) ? pathname.slice(blobPrefix.length) : pathname,
+                uploadedAt: blob.uploadedAt || null,
+              });
+            }
+            cursor = page.hasMore && items.length < max ? page.cursor : undefined;
+          } while (cursor && items.length < max);
+          return items;
+        } catch (error) {
+          console.error('Blob list failed; falling back to memory:', error && error.message ? error.message : error);
+        }
       }
       return [...memory.keys()]
         .filter(key => String(key).startsWith(cleanPrefix))
@@ -121,10 +162,36 @@ async function styleImageResponse(name, blobAuth) {
   const clean = String(name || '').toLowerCase();
   const source = STYLE_IMAGE_SOURCES[clean];
   if (!source) return new Response('Not found', { status: 404 });
-  if (!blobAuth) return new Response('Storage unavailable', { status: 503 });
+  if (!blobAuth) {
+    const remote = await fetch(source);
+    if (!remote.ok) return new Response('Image unavailable', { status: 502 });
+    return new Response(await remote.arrayBuffer(), {
+      status: 200,
+      headers: {
+        'content-type': remote.headers.get('content-type') || 'image/png',
+        'cache-control': 'public, max-age=3600',
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  }
 
   const pathname = blobPrefix + 'style-images/' + clean + '.png';
-  let existing = await get(pathname, { access: 'private', ...blobAuth, useCache: false });
+  let existing;
+  try {
+    existing = await get(pathname, { access: 'private', ...blobAuth, useCache: false });
+  } catch (error) {
+    console.error('Style image Blob read failed; serving source directly:', error && error.message ? error.message : error);
+    const remote = await fetch(source);
+    if (!remote.ok) return new Response('Image unavailable', { status: 502 });
+    return new Response(await remote.arrayBuffer(), {
+      status: 200,
+      headers: {
+        'content-type': remote.headers.get('content-type') || 'image/png',
+        'cache-control': 'public, max-age=3600',
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  }
   if (existing) {
     return new Response(existing.stream, {
       status: 200,
@@ -189,7 +256,8 @@ export default async function handler(req, res) {
       url.searchParams.delete('__path');
     }
 
-    const blobAuth = await resolveBlobAuth();
+    const resolvedBlobAuth = await resolveBlobAuth();
+    const blobAuth = await usableBlobAuth(resolvedBlobAuth);
     if (url.pathname === '/api/style-image') {
       const response = await styleImageResponse(url.searchParams.get('name'), blobAuth);
       res.statusCode = response.status;
