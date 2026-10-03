@@ -17,6 +17,66 @@ const STYLE_IMAGE_SOURCES = {
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
 const blobStoreId = process.env.BLOB_STORE_ID || '';
 const blobPrefix = 'fc-livros-magicos/';
+const supabaseUrl = process.env.SUPABASE_URL || 'https://jsttcmfwsqqsfzlnwqlm.supabase.co';
+const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_MHjsH7bJlaFwIGzXihUFFg_JribCp_9';
+
+function createSupabaseBucket() {
+  const secret = process.env.ADMIN_TOKEN || '';
+  const enabled = Boolean(supabaseUrl && supabaseKey && secret);
+
+  async function rpc(name, payload) {
+    if (!enabled) throw new Error('Supabase persistent store is not configured');
+    const response = await fetch(supabaseUrl + '/rest/v1/rpc/' + name, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'apikey': supabaseKey,
+      },
+      body: JSON.stringify(payload),
+    });
+    const raw = await response.text();
+    if (!response.ok) throw new Error('Supabase RPC ' + name + ' failed: ' + response.status + ' ' + raw.slice(0, 300));
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return raw; }
+  }
+
+  return {
+    storagePersistent: enabled,
+    provider: 'supabase',
+
+    async get(key) {
+      const value = await rpc('fc_store_get', { p_secret: secret, p_key: String(key) });
+      if (value == null) return null;
+      const raw = typeof value === 'string' ? value : String(value);
+      return { json: async () => JSON.parse(raw) };
+    },
+
+    async put(key, value) {
+      await rpc('fc_store_put', {
+        p_secret: secret,
+        p_key: String(key),
+        p_value: String(value),
+      });
+    },
+
+    async delete(key) {
+      await rpc('fc_store_delete', { p_secret: secret, p_key: String(key) });
+    },
+
+    async list(prefix, limit = 500) {
+      const rows = await rpc('fc_store_list', {
+        p_secret: secret,
+        p_prefix: String(prefix || ''),
+        p_limit: Math.max(1, Math.min(500, Number(limit) || 500)),
+      });
+      return (Array.isArray(rows) ? rows : []).map(row => ({
+        key: String(row.key || ''),
+        uploadedAt: row.uploaded_at || null,
+      }));
+    },
+  };
+}
+
 
 // Fallback apenas para desenvolvimento/ambientes sem Blob conectado.
 const memory = globalThis.__FC_LIVROS_BUCKET__ || (globalThis.__FC_LIVROS_BUCKET__ = new Map());
@@ -256,8 +316,9 @@ export default async function handler(req, res) {
       url.searchParams.delete('__path');
     }
 
-    const resolvedBlobAuth = await resolveBlobAuth();
-    const blobAuth = await usableBlobAuth(resolvedBlobAuth);
+    const supabaseBucket = createSupabaseBucket();
+    const resolvedBlobAuth = supabaseBucket.storagePersistent ? null : await resolveBlobAuth();
+    const blobAuth = supabaseBucket.storagePersistent ? null : await usableBlobAuth(resolvedBlobAuth);
     if (url.pathname === '/api/style-image') {
       const response = await styleImageResponse(url.searchParams.get('name'), blobAuth);
       res.statusCode = response.status;
@@ -272,12 +333,13 @@ export default async function handler(req, res) {
       body,
     });
 
-    const bucket = createBucket(blobAuth);
+    const bucket = supabaseBucket.storagePersistent ? supabaseBucket : createBucket(blobAuth);
 
     const response = await worker.fetch(request, {
       ...process.env,
       BUCKET: bucket,
       STORAGE_PERSISTENT: bucket.storagePersistent ? '1' : '',
+      STORAGE_PROVIDER: bucket.provider || (bucket.storagePersistent ? 'vercel-blob' : 'memory'),
     });
     res.statusCode = response.status;
 
