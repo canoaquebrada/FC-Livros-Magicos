@@ -11,7 +11,9 @@ const pageHtml=await page.text();assert(pageHtml.includes('Conte sobre a crianç
 const cookie=page.headers.get('set-cookie').split(';')[0];
 const quizResponse=await app.default.fetch(new Request('https://example.test/quiz',{headers:{Cookie:cookie}}),env);assert.equal(quizResponse.status,200,'quiz de fotos');
 const quizHtml=await quizResponse.text();
-for(const style of ['Casal Jeans','Roupas Claras','Roupas Coloridas','Praia Romântica','Social Elegante','Preto & Branco'])assert(quizHtml.includes(style),'estilo de casal ausente: '+style);
+for(const style of ['Casal Jeans','Roupas Claras','Roupas Coloridas'])assert(quizHtml.includes(style),'estilo de casal ausente: '+style);
+for(const removedStyle of ['Praia Romântica','Social Elegante','Preto & Branco'])assert(!quizHtml.includes(removedStyle),'estilo removido ainda aparece: '+removedStyle);
+assert(quizHtml.includes('Escolha um dos 3 estilos profissionais'),'quiz deve mostrar somente 3 estilos de casal');
 assert(quizHtml.includes('Escolha a posição'),'quiz explica a seleção das poses do casal');
 assert(quizHtml.includes('customerName')&&quizHtml.includes('customerWhatsapp')&&quizHtml.includes('* obrigatório')&&quizHtml.includes('whatsappAlert'),'quiz exige WhatsApp para gerar prévia');
 assert(quizHtml.includes('/api/quiz-limit')&&quizHtml.includes('limitNote')&&quizHtml.includes('Pedir liberação no WhatsApp'),'quiz exibe limite e pedido de liberação');
