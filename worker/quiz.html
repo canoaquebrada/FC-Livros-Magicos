@@ -116,46 +116,51 @@ const commonStyles=[
 {key:'jeans',emoji:'👖',title:'Jeans elegante',sub:'Visual moderno e casual'},
 {key:'cartoon',emoji:'✨',title:'Arte ilustrada',sub:'Caricatura moderna'}
 ];
+const CATALOG_SOURCE='https://d2ol7oe51mr4n9.cloudfront.net/user_35OQ75wADhjzsCPuwc4rGPj7bZk/f6d0bfe6-0c3f-4549-b475-151ea9de0740.png';
 const coupleStyles=[
-{key:'casal_jeans',title:'Casal Jeans',sub:'Jeans azul · romântico e moderno',sprite:0},
-{key:'casal_claras',title:'Roupas Claras',sub:'Branco, bege e tons suaves · clean',sprite:1},
-{key:'casal_coloridas',title:'Roupas Coloridas',sub:'Cores elegantes · visual marcante',sprite:2}
-]
+{key:'casal_jeans',title:'Casal Jeans',sub:'Jeans azul · romântico e moderno',crop:[48,180,335,398]},
+{key:'casal_claras',title:'Roupas Claras',sub:'Branco, bege e tons suaves · clean',crop:[402,180,325,398]},
+{key:'casal_coloridas',title:'Roupas Coloridas',sub:'Cores elegantes · visual marcante',crop:[752,180,326,398]}
+];
 const couplePoses=[
-{key:'1',title:'Posição 1',sub:'Abraço de pé',sprite:3},
-{key:'2',title:'Posição 2',sub:'Ela atrás, ele sentado',sprite:4},
-{key:'3',title:'Posição 3',sub:'Frente a frente',sprite:5},
-{key:'4',title:'Posição 4',sub:'Abraço por trás',sprite:6},
-{key:'5',title:'Posição 5',sub:'Sentados juntos',sprite:7}
-]
+{key:'1',title:'Posição 1',sub:'Abraço de pé',crop:[48,883,190,324]},
+{key:'2',title:'Posição 2',sub:'Ela atrás, ele sentado',crop:[251,883,206,324]},
+{key:'3',title:'Posição 3',sub:'Frente a frente',crop:[468,883,194,324]},
+{key:'4',title:'Posição 4',sub:'Abraço por trás',crop:[675,883,194,324]},
+{key:'5',title:'Posição 5',sub:'Sentados juntos',crop:[881,883,197,324]}
+];
 let catalogImagePromise;
 function getCatalogImage(){
  if(!catalogImagePromise)catalogImagePromise=new Promise((resolve,reject)=>{
   const img=new Image();
+  img.crossOrigin='anonymous';
   img.onload=()=>resolve(img);
   img.onerror=()=>reject(new Error('Não foi possível carregar as fotos do catálogo.'));
-  img.src='/catalog/couple-sprite.jpg?v=202610040929';
+  img.src=CATALOG_SOURCE;
  });
  return catalogImagePromise;
 }
 async function paintCatalogPhotos(){
  try{
   const img=await getCatalogImage();
-  document.querySelectorAll('canvas[data-catalog-index]').forEach(canvas=>{
-   const index=Number(canvas.dataset.catalogIndex)||0;
-   const sx=(index%4)*300,sy=Math.floor(index/4)*400;
+  document.querySelectorAll('canvas[data-crop]').forEach(canvas=>{
+   const crop=String(canvas.dataset.crop||'').split(',').map(Number);
+   if(crop.length!==4||crop.some(n=>!Number.isFinite(n)))return;
+   const [sx,sy,sw,sh]=crop;
    canvas.width=300;canvas.height=400;
    const ctx=canvas.getContext('2d');
    ctx.clearRect(0,0,300,400);
-   ctx.drawImage(img,sx,sy,300,400,0,0,300,400);
+   ctx.drawImage(img,sx,sy,sw,sh,0,0,300,400);
   });
  }catch(err){
-  document.querySelectorAll('canvas[data-catalog-index]').forEach(canvas=>{
-   const ctx=canvas.getContext('2d');canvas.width=300;canvas.height=400;
-   ctx.fillStyle='#f4f0f7';ctx.fillRect(0,0,300,400);
-   ctx.fillStyle='#5b5262';ctx.font='700 17px Arial';ctx.textAlign='center';
-   ctx.fillText('Foto indisponível',150,195);
-   ctx.font='13px Arial';ctx.fillText('Atualize a página',150,220);
+  console.error('Catálogo FC:',err);
+  document.querySelectorAll('canvas[data-crop]').forEach(canvas=>{
+   canvas.width=300;canvas.height=400;
+   const ctx=canvas.getContext('2d');
+   ctx.fillStyle='#f7f4f8';ctx.fillRect(0,0,300,400);
+   ctx.fillStyle='#7c2d92';ctx.font='700 16px Arial';ctx.textAlign='center';
+   ctx.fillText('Não foi possível carregar',150,190);
+   ctx.font='13px Arial';ctx.fillStyle='#6b7280';ctx.fillText('Atualize a página',150,215);
   });
  }
 }
@@ -163,7 +168,7 @@ function renderPoses(){
  const block=$('#poseBlock');
  if(type!=='casal'||!style){block.classList.add('hidden');pose='';return}
  block.classList.remove('hidden');
- $('#poseGrid').innerHTML=couplePoses.map(item=>'<button type="button" class="poseChoice" data-pose="'+item.key+'"><canvas class="poseThumb catalog-canvas" data-catalog-index="'+item.sprite+'" role="img" aria-label="'+item.title+' · '+item.sub+'"></canvas><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');paintCatalogPhotos();
+ $('#poseGrid').innerHTML=couplePoses.map(item=>'<button type="button" class="poseChoice" data-pose="'+item.key+'"><canvas class="poseThumb catalog-canvas" data-crop="'+item.crop.join(',')+'" role="img" aria-label="'+item.title+' · '+item.sub+'"></canvas><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');paintCatalogPhotos();
  pose='';
  $('#generate').disabled=true;
 }
@@ -172,7 +177,7 @@ function renderStyles(){
  $('#styleGrid').classList.toggle('coupleGrid',type==='casal');
  $('#styleTitle').textContent=type==='casal'?'3. Escolha o estilo do casal':'3. Escolha o estilo';
  $('#styleSub').textContent=type==='casal'?'Escolha um dos 3 estilos profissionais. Depois selecione a pose do casal.':'A IA usará sua foto como referência principal.';
- $('#styleGrid').innerHTML=list.map(item=>type==='casal'?'<button class="choice coupleStyleCard" data-style="'+item.key+'"><canvas class="coupleStyleVisual catalog-canvas" data-catalog-index="'+item.sprite+'" role="img" aria-label="'+item.title+'"></canvas><b>'+item.title+'</b><small>'+item.sub+'</small></button>':'<button class="choice" data-style="'+item.key+'"><span class="emoji">'+item.emoji+'</span><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');if(type==='casal')paintCatalogPhotos();
+ $('#styleGrid').innerHTML=list.map(item=>type==='casal'?'<button class="choice coupleStyleCard" data-style="'+item.key+'"><canvas class="coupleStyleVisual catalog-canvas" data-crop="'+item.crop.join(',')+'" role="img" aria-label="'+item.title+'"></canvas><b>'+item.title+'</b><small>'+item.sub+'</small></button>':'<button class="choice" data-style="'+item.key+'"><span class="emoji">'+item.emoji+'</span><b>'+item.title+'</b><small>'+item.sub+'</small></button>').join('');if(type==='casal')paintCatalogPhotos();
  style='';pose='';
  $('#poseBlock').classList.add('hidden');
  $('#generate').disabled=true;
