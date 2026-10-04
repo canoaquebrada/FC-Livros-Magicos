@@ -19,6 +19,8 @@ const blobStoreId = process.env.BLOB_STORE_ID || '';
 const blobPrefix = 'fc-livros-magicos/';
 const supabaseUrl = process.env.SUPABASE_URL || 'https://jsttcmfwsqqsfzlnwqlm.supabase.co';
 const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_MHjsH7bJlaFwIGzXihUFFg_JribCp_9';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzdHRjbWZ3c3Fxc2Z6bG53cWxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTQzNjYsImV4cCI6MjA5Nzk3MDM2Nn0.xWmCJ4bzy2GpslHwARwvputYaptKNFcJQBCAxeIdMqU';
+const supabaseMediaBucket = 'fc-previews';
 
 function createSupabaseBucket() {
   const secret = process.env.ADMIN_TOKEN || '';
@@ -40,9 +42,72 @@ function createSupabaseBucket() {
     try { return JSON.parse(raw); } catch { return raw; }
   }
 
+
+  function mediaHeaders(contentType) {
+    return {
+      apikey: supabaseKey,
+      authorization: 'Bearer ' + supabaseAnonKey,
+      'x-fc-storage-secret': secret,
+      ...(contentType ? {'content-type': contentType} : {}),
+    };
+  }
+
+  async function toMediaBytes(value) {
+    const raw = String(value || '');
+    const data = raw.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (data) return { bytes: Buffer.from(data[2], 'base64'), contentType: data[1] };
+    if (/^https?:\/\//i.test(raw)) {
+      const response = await fetch(raw);
+      if (!response.ok) throw new Error('Could not download generated image: ' + response.status);
+      return { bytes: Buffer.from(await response.arrayBuffer()), contentType: (response.headers.get('content-type') || 'image/jpeg').split(';')[0] };
+    }
+    throw new Error('Unsupported media value');
+  }
+
+  const media = {
+    async putImage(id, kind, value) {
+      if (!enabled) return null;
+      const source = await toMediaBytes(value);
+      const ext = source.contentType === 'image/png' ? 'png' : source.contentType === 'image/webp' ? 'webp' : 'jpg';
+      const path = String(id).replace(/[^A-Za-z0-9_-]/g, '') + '/' + String(kind).replace(/[^a-z]/gi, '') + '.' + ext;
+      const endpoint = supabaseUrl + '/storage/v1/object/' + supabaseMediaBucket + '/' + path;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {...mediaHeaders(source.contentType), 'x-upsert': 'true'},
+        body: source.bytes,
+      });
+      const raw = await response.text();
+      if (!response.ok) throw new Error('Supabase Storage upload failed: ' + response.status + ' ' + raw.slice(0, 250));
+      return 'media://' + path;
+    },
+    async getImage(ref) {
+      const path = String(ref || '').replace(/^media:\/\//, '');
+      if (!path) return null;
+      const response = await fetch(supabaseUrl + '/storage/v1/object/authenticated/' + supabaseMediaBucket + '/' + path, {
+        headers: mediaHeaders(),
+      });
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error('Supabase Storage read failed: ' + response.status);
+      return {
+        bytes: Buffer.from(await response.arrayBuffer()),
+        contentType: (response.headers.get('content-type') || 'image/jpeg').split(';')[0],
+      };
+    },
+    async deleteImage(ref) {
+      const path = String(ref || '').replace(/^media:\/\//, '');
+      if (!path) return;
+      const response = await fetch(supabaseUrl + '/storage/v1/object/' + supabaseMediaBucket + '/' + path, {
+        method: 'DELETE',
+        headers: {...mediaHeaders('application/json')},
+      });
+      if (!response.ok && response.status !== 404) throw new Error('Supabase Storage delete failed: ' + response.status);
+    },
+  };
+
   return {
     storagePersistent: enabled,
     provider: 'supabase',
+    media,
 
     async get(key) {
       const value = await rpc('fc_store_get', { p_secret: secret, p_key: String(key) });
@@ -340,6 +405,7 @@ export default async function handler(req, res) {
       BUCKET: bucket,
       STORAGE_PERSISTENT: bucket.storagePersistent ? '1' : '',
       STORAGE_PROVIDER: bucket.provider || (bucket.storagePersistent ? 'vercel-blob' : 'memory'),
+      MEDIA: supabaseBucket.media || null,
     });
     res.statusCode = response.status;
 
