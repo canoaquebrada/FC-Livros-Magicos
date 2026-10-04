@@ -197,6 +197,12 @@ if(!record)return json({error:'Prévia não encontrada'},404,cookie);
 const kind=url.searchParams.get('kind')==='original'?'original':'preview';
 const value=cleanText(record[kind]);
 if(!value)return json({error:'Imagem não encontrada'},404,cookie);
+if(/^media:\/\//i.test(value)){
+  if(!env.MEDIA||typeof env.MEDIA.getImage!=='function')return json({error:'Storage de imagem indisponível'},503,cookie);
+  const media=await env.MEDIA.getImage(value);
+  if(!media)return json({error:'Imagem não encontrada'},404,cookie);
+  return new Response(request.method==='HEAD'?null:media.bytes,{headers:{'content-type':media.contentType||'image/jpeg','cache-control':'private, no-store','content-disposition':url.searchParams.get('download')==='1'?'attachment; filename="fc-previa-'+orderCleanCode(record.id||'foto')+'.jpg"':'inline',...cookie}})
+}
 if(/^https?:\/\//i.test(value)){const remote=await fetch(value);if(!remote.ok)return json({error:'Imagem indisponível'},502,cookie);const bytes=new Uint8Array(await remote.arrayBuffer());return new Response(request.method==='HEAD'?null:bytes,{headers:{'content-type':remote.headers.get('content-type')||'image/jpeg','cache-control':'private, no-store','content-disposition':url.searchParams.get('download')==='1'?'attachment; filename="fc-previa-'+orderCleanCode(record.id||'foto')+'.jpg"':'inline',...cookie}})}
 const match=value.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
 if(!match)return json({error:'Formato de imagem inválido'},415,cookie);
@@ -228,6 +234,15 @@ let body;try{body=await request.json()}catch{return json({error:'Dados inválido
 const record=await updateOrderStatus(env,url.searchParams.get('code')||'',body&&body.status);
 if(!record)return json({error:'Pedido ou status inválido'},400,cookie);
 return json({ok:true,code:record.code,status:record.status,updatedAt:record.updatedAt},200,cookie)}
+if(url.pathname==='/api/admin/preview-status'){
+const settings=await resolvedOrderSettings(env);
+if(!settings.admin)return json({error:'Administração não configurada'},503,cookie);
+if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+let body;try{body=await request.json()}catch{return json({error:'Dados inválidos'},400,cookie)}
+const updated=await updateQuizPreviewCrmStatus(env,body&&body.id,body&&body.status);
+if(!updated)return json({error:'Prévia ou status inválido'},400,cookie);
+return json({ok:true,item:updated},200,cookie)}
 if(url.pathname==='/api/admin/quiz-access'){
 const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
