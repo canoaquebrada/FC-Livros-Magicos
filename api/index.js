@@ -33,6 +33,8 @@ function createSupabaseBucket() {
       headers: {
         'content-type': 'application/json',
         'apikey': supabaseKey,
+        'authorization': 'Bearer ' + supabaseAnonKey,
+        'x-fc-storage-secret': secret,
       },
       body: JSON.stringify(payload),
     });
