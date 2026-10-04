@@ -8,8 +8,13 @@ const STYLE_IMAGE_SOURCES = {
   "coloridas": "https://images.pexels.com/photos/37179900/pexels-photo-37179900.jpeg?auto=compress&cs=tinysrgb&w=1000",
   "praia": "https://images.pexels.com/photos/33640506/pexels-photo-33640506.jpeg?auto=compress&cs=tinysrgb&w=1000",
   "social": "https://images.pexels.com/photos/36028975/pexels-photo-36028975.jpeg?auto=compress&cs=tinysrgb&w=1000",
-  "pb": "https://images.pexels.com/photos/35316894/pexels-photo-35316894.jpeg?auto=compress&cs=tinysrgb&w=1000"
-}
+  "pb": "https://images.pexels.com/photos/35316894/pexels-photo-35316894.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "pose1": "https://images.pexels.com/photos/32546693/pexels-photo-32546693.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose2": "https://images.pexels.com/photos/32505043/pexels-photo-32505043.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose3": "https://images.pexels.com/photos/15972554/pexels-photo-15972554.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose4": "https://images.pexels.com/photos/20233007/pexels-photo-20233007.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose5": "https://images.pexels.com/photos/36103803/pexels-photo-36103803.jpeg?auto=compress&cs=tinysrgb&w=900"
+};
 
 // Armazenamento persistente na Vercel.
 // Usa OIDC + BLOB_STORE_ID (modo recomendado atual) e mantém compatibilidade
