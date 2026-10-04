@@ -3,13 +3,13 @@ import { put, get, del, list } from '@vercel/blob';
 import { getVercelOidcToken } from '@vercel/oidc';
 
 const STYLE_IMAGE_SOURCES = {
-  "jeans": "https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/8d75e2e3-a6f3-4eec-8bf8-02dd78231aec/8a0177e2-7ccd-4a63-8bf9-01ac2eb89a0e/_couple__same_adult_couple_and_same_facial_identity__realist.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiNmY2OGU4YjQzYjczYzg5ZiIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTA0MDY5Mn0.gyGmx30O28GWtryYCy2AAaLJm9BB6cJtXP5iu5fx-J0",
-  "claras": "https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/7f7c5c08-dc4c-43ca-85db-d925cd965181/1ce2b3b4-2fd7-4a5e-b0da-7864fc1219ba/_couple__same_adult_couple_and_same_facial_identity__realist.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiYjNkOTQ5MDM3ZWFmMjEzZSIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTAwMDA2N30.zKYMa2mbiuFicONsIp-cikew-iXZ9cUdwsUo4Iz3vHg",
-  "coloridas": "https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/835affff-8af6-4471-a6de-5d461e8ada20/dcf6255b-5331-4df4-843f-432745cf7837/_couple__same_adult_couple_and_same_facial_identity__realist.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiNGMzOWE5M2E0MzNiOGUxYiIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTAyNjQ5MH0.9QSXBLSeErA1dxa3TMhffEhfif5DL2waJC5VbMzfbBY",
-  "praia": "https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/3e4da2eb-c239-4009-95bd-b5a2e0171151/ff82cd63-4a84-41f2-ba32-5844ef89de58/_couple__same_adult_couple_and_same_facial_identity__realist.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiODU3NzllMjdhYTMzNmZmZCIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTA1MjE5OX0.SgjnmAoS8DmM8DDMgLY7fJeZW4mH9MYuFJWJ5qfA4w4",
-  "social": "https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/b1c7275d-474f-4927-be38-4a4f0ddb34b1/63134ebb-32f5-4276-b566-583bdb1a8609/_couple__same_adult_couple_and_same_facial_identity__realist.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiNDcwMzY5M2EwYzFkZDI3MSIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTAyMTg4Mn0.-24KR3RQu9oN3MNxbfCHaeNn0uqQmNbTywvRX13Z_gs",
-  "pb": "https://dnznrvs05pmza.cloudfront.net/gemini/gemini-3.1-flash-image/images/486a5c8f-975b-4320-ae0a-b462ee4be59c/80b7d722-3c5d-4610-b8a2-1b8d541832be/_couple__same_adult_couple_and_same_facial_identity__realist.png?_jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXlIYXNoIjoiNGIzYzc5MGE2NzVmOTJkYiIsImJ1Y2tldCI6InJ1bndheS10YXNrLWFydGlmYWN0cyIsInN0YWdlIjoicHJvZCIsImV4cCI6MTc5MTAyMjM0Nn0.n_vnqfMFaC2eSG_vpQwGIAh0H9YPAwBxqSeskF6ExAw"
-};
+  "jeans": "https://images.pexels.com/photos/27640672/pexels-photo-27640672.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "claras": "https://images.pexels.com/photos/32505043/pexels-photo-32505043.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "coloridas": "https://images.pexels.com/photos/37179900/pexels-photo-37179900.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "praia": "https://images.pexels.com/photos/33640506/pexels-photo-33640506.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "social": "https://images.pexels.com/photos/36028975/pexels-photo-36028975.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "pb": "https://images.pexels.com/photos/35316894/pexels-photo-35316894.jpeg?auto=compress&cs=tinysrgb&w=1000"
+}
 
 // Armazenamento persistente na Vercel.
 // Usa OIDC + BLOB_STORE_ID (modo recomendado atual) e mantém compatibilidade
@@ -296,7 +296,7 @@ async function styleImageResponse(name, blobAuth) {
       status: 200,
       headers: {
         'content-type': remote.headers.get('content-type') || 'image/png',
-        'cache-control': 'public, max-age=3600',
+        'cache-control': 'public, max-age=86400, stale-while-revalidate=604800',
         'x-content-type-options': 'nosniff',
       },
     });
@@ -314,7 +314,7 @@ async function styleImageResponse(name, blobAuth) {
       status: 200,
       headers: {
         'content-type': remote.headers.get('content-type') || 'image/png',
-        'cache-control': 'public, max-age=3600',
+        'cache-control': 'public, max-age=86400, stale-while-revalidate=604800',
         'x-content-type-options': 'nosniff',
       },
     });
