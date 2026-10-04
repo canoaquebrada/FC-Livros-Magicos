@@ -134,7 +134,7 @@ function getCatalogImage(){
   const img=new Image();
   img.onload=()=>resolve(img);
   img.onerror=()=>reject(new Error('Não foi possível carregar as fotos do catálogo.'));
-  img.src='/catalog/couple-sprite.webp?v=202610040822';
+  img.src='/catalog/couple-sprite.jpg?v=202610040929';
  });
  return catalogImagePromise;
 }
