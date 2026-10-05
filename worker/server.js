@@ -15,8 +15,15 @@ if(!token){token=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toSt
 try{
 if(url.pathname==='/quiz'||url.pathname==='/quiz/'){
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
-if(request.method==='GET'){await registerQuizVisit(env,token)}
+if(request.method==='GET'){await registerQuizVisit(env,token);await registerQuizJourneyVisit(env,token,request,url)}
 return new Response(request.method==='HEAD'?null:QUIZ_HTML,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'same-origin','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://dnznrvs05pmza.cloudfront.net https://d2ol7oe51mr4n9.cloudfront.net; connect-src 'self'; frame-src https://pay.finaliza.shop; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",...cookie}})}
+if(url.pathname==='/api/quiz-event'){
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
+if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
+let body;try{body=await request.json()}catch{return json({error:'Dados inválidos'},400,cookie)}
+const record=await registerQuizJourneyEvent(env,token,body&&body.event);
+return record?json({ok:true},200,cookie):json({error:'Evento inválido'},400,cookie)}
 if(url.pathname==='/api/quiz-limit'){
 if(request.method!=='GET')return json({error:'Método não permitido'},405,cookie);
 const settings=await resolvedOrderSettings(env);
@@ -320,7 +327,7 @@ const view=url.searchParams.get('view')||'quiz-clients';
 if(view==='quiz-clients'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
-return new Response(quizClientsAdminHtml(await quizClientsWithGenerationAccess(env),settings,settings.admin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
+return new Response(quizClientsAdminHtml(await quizClientsWithGenerationAccess(env),settings,settings.admin,await quizJourneyAnalytics(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(view==='previews'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
