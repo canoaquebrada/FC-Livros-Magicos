@@ -17,6 +17,7 @@ assert(quizHtml.includes('Escolha um dos 3 estilos profissionais'),'quiz deve mo
 assert(quizHtml.includes('Escolha a posição'),'quiz explica a seleção das poses do casal');
 assert(quizHtml.includes('customerName')&&quizHtml.includes('customerWhatsapp')&&quizHtml.includes('* obrigatório')&&quizHtml.includes('whatsappAlert'),'quiz exige WhatsApp para gerar prévia');
 assert(quizHtml.includes('https://pay.finaliza.shop/pl/0e58a95579')&&quizHtml.includes('checkoutFrame')&&quizHtml.includes('checkoutCard'),'quiz incorpora checkout Finaliza/Appmax após a prévia');
+assert(quizHtml.includes('/api/quiz-event')&&quizHtml.includes("trackQuizEvent('generate')")&&quizHtml.includes("trackQuizEvent('preview')")&&quizHtml.includes("trackQuizEvent('checkout_view')"),'quiz registra eventos do funil de fotos');
 assert(quizHtml.includes('/api/quiz-limit')&&quizHtml.includes('limitNote')&&quizHtml.includes('Pedir liberação no WhatsApp'),'quiz exibe limite e pedido de liberação');
 assert(quizHtml.includes('https://d2ol7oe51mr4n9.cloudfront.net/'),'fonte estável do catálogo ausente');
 assert(quizHtml.includes('poseThumb')&&quizHtml.includes('catalog-canvas')&&quizHtml.includes('paintCatalogPhotos'),'miniaturas fotograficas das posicoes ausentes');
@@ -84,6 +85,7 @@ assert(painelHtml.includes('Clientes e Prévias')&&painelHtml.includes('quiz-cli
 assert(painelHtml.includes('FC Artes Digitais')&&painelHtml.includes('Abrir quiz')&&!painelHtml.includes('Dashboard de pedidos'),'navegação do admin deve ser focada somente em fotos');
 const quizClientsPage=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&view=quiz-clients'),env);assert.equal(quizClientsPage.status,200,'clientes/fotos do quiz');const quizClientsHtml=await quizClientsPage.text();assert(quizClientsHtml.includes('Clientes e Prévias')&&quizClientsHtml.includes('quiz-client-search')&&quizClientsHtml.includes('quiz-style-filter')&&quizClientsHtml.includes('quiz-pose-filter')&&quizClientsHtml.includes('quiz-date-filter'),'CRM do quiz com filtros');
 assert(quizClientsHtml.includes('Prévias hoje')&&quizClientsHtml.includes('Pagaram')&&quizClientsHtml.includes('Entregues'),'CRM mostra indicadores comerciais');
+assert(quizClientsHtml.includes('Funil do Quiz de Fotos')&&quizClientsHtml.includes('Origem / UTM')&&quizClientsHtml.includes('Últimas visitas'),'CRM mostra analytics do quiz');
 const configPage=await app.default.fetch(new Request('https://example.test/painel?token=token-de-teste&view=config'),env);assert.equal(configPage.status,200,'página de configurações');const configHtml=await configPage.text();
 for(const block of ['Configurações','Dados da loja','Integrações e segurança','Armazenamento persistente','WhatsApp Cloud API','Segurança'])assert(configHtml.includes(block),'configurações sem: '+block);
 const settingsGet=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste'),env);assert.equal(settingsGet.status,200,'leitura das configurações');
