@@ -16,7 +16,7 @@ try{
 if(url.pathname==='/quiz'||url.pathname==='/quiz/'){
 if(!['GET','HEAD'].includes(request.method))return new Response('Método não permitido',{status:405});
 if(request.method==='GET'){await registerQuizVisit(env,token)}
-return new Response(request.method==='HEAD'?null:QUIZ_HTML,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'same-origin','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://dnznrvs05pmza.cloudfront.net https://d2ol7oe51mr4n9.cloudfront.net; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",...cookie}})}
+return new Response(request.method==='HEAD'?null:QUIZ_HTML,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'same-origin','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://dnznrvs05pmza.cloudfront.net https://d2ol7oe51mr4n9.cloudfront.net; connect-src 'self'; frame-src https://pay.finaliza.shop; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",...cookie}})}
 if(url.pathname==='/api/quiz-limit'){
 if(request.method!=='GET')return json({error:'Método não permitido'},405,cookie);
 const settings=await resolvedOrderSettings(env);
