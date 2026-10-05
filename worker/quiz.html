@@ -116,23 +116,24 @@ const commonStyles=[
 {key:'jeans',emoji:'👖',title:'Jeans elegante',sub:'Visual moderno e casual'},
 {key:'cartoon',emoji:'✨',title:'Arte ilustrada',sub:'Caricatura moderna'}
 ];
-const CATALOG_SOURCE='/catalog/couple-catalog.jpg?v=20261005-final';
+const CATALOG_SOURCE='https://d2ol7oe51mr4n9.cloudfront.net/user_35OQ75wADhjzsCPuwc4rGPj7bZk/f6d0bfe6-0c3f-4549-b475-151ea9de0740.png';
 const coupleStyles=[
-{key:'casal_jeans',title:'Casal Jeans',sub:'Jeans azul · romântico e moderno',crop:[0,0,150,200]},
-{key:'casal_claras',title:'Roupas Claras',sub:'Branco, bege e tons suaves · clean',crop:[150,0,150,200]},
-{key:'casal_coloridas',title:'Roupas Coloridas',sub:'Cores elegantes · visual marcante',crop:[300,0,150,200]}
+{key:'casal_jeans',title:'Casal Jeans',sub:'Jeans azul · romântico e moderno',crop:[48,180,335,398]},
+{key:'casal_claras',title:'Roupas Claras',sub:'Branco, bege e tons suaves · clean',crop:[402,180,325,398]},
+{key:'casal_coloridas',title:'Roupas Coloridas',sub:'Cores elegantes · visual marcante',crop:[752,180,326,398]}
 ];
 const couplePoses=[
-{key:'1',title:'Posição 1',sub:'Abraço de pé',crop:[450,0,150,200]},
-{key:'2',title:'Posição 2',sub:'Ela atrás, ele sentado',crop:[0,200,150,200]},
-{key:'3',title:'Posição 3',sub:'Frente a frente',crop:[150,200,150,200]},
-{key:'4',title:'Posição 4',sub:'Abraço por trás',crop:[300,200,150,200]},
-{key:'5',title:'Posição 5',sub:'Sentados juntos',crop:[450,200,150,200]}
+{key:'1',title:'Posição 1',sub:'Abraço de pé',crop:[48,883,190,324]},
+{key:'2',title:'Posição 2',sub:'Ela atrás, ele sentado',crop:[251,883,206,324]},
+{key:'3',title:'Posição 3',sub:'Frente a frente',crop:[468,883,194,324]},
+{key:'4',title:'Posição 4',sub:'Abraço por trás',crop:[675,883,194,324]},
+{key:'5',title:'Posição 5',sub:'Sentados juntos',crop:[881,883,197,324]}
 ];
 let catalogImagePromise;
 function getCatalogImage(){
  if(!catalogImagePromise)catalogImagePromise=new Promise((resolve,reject)=>{
   const img=new Image();
+  img.crossOrigin='anonymous';
   img.onload=()=>resolve(img);
   img.onerror=()=>reject(new Error('Não foi possível carregar as fotos do catálogo.'));
   img.src=CATALOG_SOURCE;
