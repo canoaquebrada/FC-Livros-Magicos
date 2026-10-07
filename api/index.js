@@ -116,6 +116,25 @@ function createSupabaseBucket() {
     provider: 'supabase',
     media,
 
+    async quizVisitStats() {
+      const data = await rpc('fc_quiz_visit_stats', { p_secret: secret });
+      return {
+        total: Math.max(0, Number(data && data.total) || 0),
+        today: Math.max(0, Number(data && data.today) || 0),
+      };
+    },
+
+    async registerQuizVisit(sessionToken) {
+      const data = await rpc('fc_quiz_visit_register', {
+        p_secret: secret,
+        p_session: String(sessionToken || ''),
+      });
+      return {
+        total: Math.max(0, Number(data && data.total) || 0),
+        today: Math.max(0, Number(data && data.today) || 0),
+      };
+    },
+
     async get(key) {
       const value = await rpc('fc_store_get', { p_secret: secret, p_key: String(key) });
       if (value == null) return null;
