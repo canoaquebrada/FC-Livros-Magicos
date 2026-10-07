@@ -135,6 +135,13 @@ function createSupabaseBucket() {
       };
     },
 
+    async quizJourneyAnalytics() {
+      const data = await rpc('fc_quiz_journey_analytics', { p_secret: secret });
+      return data && typeof data === 'object'
+        ? data
+        : { counts: {}, sources: [], devices: {}, recent: [] };
+    },
+
     async get(key) {
       const value = await rpc('fc_store_get', { p_secret: secret, p_key: String(key) });
       if (value == null) return null;
