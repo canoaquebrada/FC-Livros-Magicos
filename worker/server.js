@@ -327,7 +327,7 @@ const view=url.searchParams.get('view')||'quiz-clients';
 if(view==='quiz-clients'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
-return new Response(quizClientsAdminHtml(await quizClientsWithGenerationAccess(env),settings,settings.admin,await quizJourneyAnalytics(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
+return new Response(quizClientsAdminHtml(await quizClientsWithGenerationAccess(env),settings,settings.admin,await quizJourneyAnalytics(env),await quizVisitStats(env)),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
 if(view==='previews'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
