@@ -194,6 +194,58 @@ await saveDraftIndex(env,token,body);
 await registerFunnelStep(env,token,body.step);
 return json({saved:true},200,cookie)}
 return json({error:'Método não permitido'},405)}
+if(url.pathname==='/api/admin/generate-photo'){
+const settings=await resolvedOrderSettings(env);
+if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
+if(url.searchParams.get('token')!==settings.admin)return json({error:'Token inválido'},403,cookie);
+if(request.method!=='POST')return json({error:'Método não permitido'},405,cookie);
+const requestOrigin=request.headers.get('origin');if(requestOrigin&&requestOrigin!==url.origin)return json({error:'Origem inválida'},403,cookie);
+if(!request.headers.get('content-type')?.includes('application/json'))return json({error:'Formato inválido'},415,cookie);
+const raw=await request.text();if(raw.length>9500000)return json({error:'A foto ficou grande demais. Escolha outra imagem.'},413,cookie);
+let body;try{body=JSON.parse(raw)}catch{return json({error:'Dados inválidos'},400,cookie)}
+const adminPrompt=cleanText(body&&body.prompt).slice(0,6000);
+if(!photoOk(body&&body.photo,8500000)||!body.photo)return json({error:'Envie uma foto válida em JPG, PNG ou WebP.'},400,cookie);
+if(adminPrompt.length<8)return json({error:'Escreva o que deseja criar.'},400,cookie);
+if(!env.BUCKET)return json({error:'Armazenamento indisponível.'},503,cookie);
+const baseUrl=(cleanText(env.QUACKAPI_BASE_URL)||'https://quackapi.erlancarreira.com.br').replace(/\/+$/,'');
+const apiKey=cleanText(env.QUACKAPI_API_KEY);
+const model=cleanText(env.QUACKAPI_MODEL)||'duckai/gpt-5.6-luna';
+if(!apiKey)return json({error:'A geração de imagens não está configurada no servidor.'},503,cookie);
+const prompt=[
+'TAREFA ADMINISTRATIVA: edite a foto enviada e devolva UMA ÚNICA NOVA IMAGEM final.',
+'FIDELIDADE OBRIGATÓRIA: use a foto enviada como referência principal e preserve rigorosamente a identidade visual das pessoas ou animais presentes. Mantenha formato do rosto, olhos, nariz, boca, dentes quando visíveis, sobrancelhas, cabelo, barba, tom e textura natural da pele, idade aparente, corpo e proporções naturais. Não trocar, misturar, duplicar ou remover sujeitos.',
+'ANATOMIA E QUALIDADE: mãos e dedos corretos, braços e pernas naturais, cabeça e pescoço proporcionais, perspectiva coerente, iluminação profissional, alta nitidez e acabamento fotográfico premium.',
+'PEDIDO DO ADMIN:',
+adminPrompt,
+'RESTRIÇÕES: não adicionar pessoas, animais, textos, logotipos, marcas d’água ou objetos não solicitados. Se o pedido exigir roupa, cenário ou pose diferente, altere apenas esses elementos mantendo a identidade original.'
+].join(' ');
+let generated;
+try{
+ const response=await fetch(baseUrl+'/v1/images/generations',{method:'POST',headers:{authorization:'Bearer '+apiKey,'content-type':'application/json'},body:JSON.stringify({model,prompt,image:body.photo,response_format:'b64_json',size:'1024x1024'})});
+ if(!response.ok){const detail=(await response.text()).slice(0,800);console.error('Admin QuackAPI generation failed',response.status,detail);return json({error:'A IA não conseguiu gerar a foto agora. Tente novamente.'},502,cookie)}
+ generated=await response.json();
+}catch(error){console.error('Admin QuackAPI request failed',error&&error.message?error.message:error);return json({error:'Falha ao conectar com a IA de imagens.'},502,cookie)}
+const item=generated&&generated.data&&generated.data[0];
+if(!item)return json({error:'A IA não retornou uma imagem.'},502,cookie);
+let preview='';
+if(typeof item.b64_json==='string'&&item.b64_json.length>50)preview='data:image/jpeg;base64,'+item.b64_json;
+else if(typeof item.url==='string'&&item.url)preview=item.url;
+else if(item.id){
+ try{
+  const imageResponse=await fetch(baseUrl+'/v1/images/content/'+encodeURIComponent(item.id),{headers:{authorization:'Bearer '+apiKey}});
+  if(imageResponse.ok){
+   const imageBytes=new Uint8Array(await imageResponse.arrayBuffer());let binary='';
+   for(let i=0;i<imageBytes.length;i+=8192)binary+=String.fromCharCode(...imageBytes.subarray(i,i+8192));
+   const contentType=(imageResponse.headers.get('content-type')||'image/jpeg').split(';')[0];
+   preview='data:'+contentType+';base64,'+btoa(binary);
+  }
+ }catch(error){console.error('Admin QuackAPI content fetch failed',error&&error.message?error.message:error)}
+}
+if(!preview)return json({error:'A IA respondeu sem uma imagem utilizável.'},502,cookie);
+const saved=await saveQuizPreviewRecord(env,{sessionToken:'',customerName:'ADMIN',customerWhatsapp:'',type:'Admin',style:'Prompt livre',pose:'',model,provider:'quackapi',original:body.photo,preview,revisedPrompt:item.revised_prompt||adminPrompt,status:'gerada',crmStatus:'nova'});
+if(!saved||!saved.id)return json({error:'A foto foi gerada, mas não foi possível salvá-la.'},500,cookie);
+const imageBase='/api/admin/preview-image?token='+encodeURIComponent(settings.admin)+'&id='+encodeURIComponent(saved.id)+'&kind=preview';
+return json({ok:true,previewId:saved.id,model,previewUrl:imageBase,downloadUrl:imageBase+'&download=1'},200,cookie)}
 if(url.pathname==='/api/admin/preview-image'){
 const settings=await resolvedOrderSettings(env);
 if(!settings.admin)return json({error:'Administração não configurada: defina ADMIN_TOKEN.'},503,cookie);
@@ -332,6 +384,8 @@ if(view==='previews'){
 const removePreview=orderCleanCode(url.searchParams.get('apagarPreview')||'');
 if(removePreview)await deleteQuizPreviewRecord(env,removePreview);
 return new Response(previewAdminHtml(await quizPreviewIndex(env),settings,settings.admin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
+if(view==='generate'){
+return new Response(adminPhotoGeneratorHtml(settings,settings.admin),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob: https:; base-uri 'none'",...cookie}})}
 if(view==='config'){
 const info={aiConfigured:Boolean(cleanText(env.AI_API_KEY)||cleanText(env.OPENAI_API_KEY))};
 return new Response(adminSettingsHtml(settings,settings.admin,info),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex, nofollow','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data: https:; base-uri 'none'",...cookie}})}
