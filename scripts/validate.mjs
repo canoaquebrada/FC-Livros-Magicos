@@ -16,8 +16,10 @@ for(const removedStyle of ['Praia Romântica','Social Elegante','Preto & Branco'
 assert(quizHtml.includes('Escolha um dos 3 estilos profissionais'),'quiz deve mostrar somente 3 estilos de casal');
 assert(quizHtml.includes('Escolha a posição'),'quiz explica a seleção das poses do casal');
 assert(quizHtml.includes('customerName')&&quizHtml.includes('customerWhatsapp')&&quizHtml.includes('* obrigatório')&&quizHtml.includes('whatsappAlert'),'quiz exige WhatsApp para gerar prévia');
-assert(quizHtml.includes('https://pay.finaliza.shop/pl/0e58a95579')&&quizHtml.includes('checkoutFrame')&&quizHtml.includes('checkoutCard'),'quiz incorpora checkout Finaliza/Appmax após a prévia');
-assert(quizHtml.includes('/api/quiz-event')&&quizHtml.includes("trackQuizEvent('generate')")&&quizHtml.includes("trackQuizEvent('preview')")&&quizHtml.includes("trackQuizEvent('checkout_view')"),'quiz registra eventos do funil de fotos');
+assert(quizHtml.includes('id="unlock"')&&quizHtml.includes('id="whatsapp"')&&quizHtml.includes('Finalize pelo WhatsApp'),'quiz deve finalizar pelo WhatsApp com botões para cliente');
+assert(!quizHtml.includes('pay.finaliza.shop')&&!quizHtml.includes('checkoutFrame'),'checkout embutido não deve aparecer no quiz');
+assert(quizHtml.includes('/api/quiz-event')&&quizHtml.includes("trackQuizEvent('generate')")&&quizHtml.includes("trackQuizEvent('preview')"),'quiz mantém os eventos existentes de geração e prévia');
+assert(quizHtml.includes("$('#unlock').href=data.unlockWaLink||data.waLink"),'WhatsApp para finalizar deve usar link retornado pelo servidor');
 assert(quizHtml.includes('/api/quiz-limit')&&quizHtml.includes('limitNote')&&quizHtml.includes('Pedir liberação no WhatsApp'),'quiz exibe limite e pedido de liberação');
 assert(quizHtml.includes('https://d2ol7oe51mr4n9.cloudfront.net/'),'fonte estável do catálogo ausente');
 assert(quizHtml.includes('poseThumb')&&quizHtml.includes('catalog-canvas')&&quizHtml.includes('paintCatalogPhotos'),'miniaturas fotograficas das posicoes ausentes');
