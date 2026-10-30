@@ -47,7 +47,7 @@ await send({method:'PUT',headers,body:JSON.stringify({data:{...draft.data,photo:
 // ---- Pedido enviado para o WhatsApp da loja ----
 const JPG='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
 for(const style of ['casal_jeans','casal_claras','casal_coloridas','casal_praia','casal_social','casal_pb']){
- const preview=await app.default.fetch(new Request('https://example.test/api/preview',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie},body:JSON.stringify({type:'casal',style,pose:'1',photo:JPG,customerWhatsapp:'(85) 99999-9999'})}),env);
+ const preview=await app.default.fetch(new Request('https://example.test/api/preview',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test',Cookie:cookie},body:JSON.stringify({type:'casal',style,pose:'1',photo:JPG,customerWhatsapp:'+52 55 1234 5678'})}),env);
  assert.equal(preview.status,200,'preview aceita estilo '+style);
  const payload=await preview.json();assert.equal(payload.demo,true,'preview sem API usa demonstração '+style);
 }
@@ -136,8 +136,8 @@ assert.equal(fallback.story.mock,true,'sem chave cai no provedor de demonstraç�
 await send({method:'PUT',headers,body:JSON.stringify({data:{name:'Levi'},step:1})},200,'briefing incompleto');
 const incomplete=await app.default.fetch(new Request('https://example.test/api/order',{method:'POST',headers}),env);assert.equal(incomplete.status,400,'pedido sem briefing completo');
 assert((await incomplete.json()).error.includes('Faltam informações'),'mensagem de campos faltantes');
-const settingsSave=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test'},body:JSON.stringify({shop:'FC Loja Teste',whatsapp:'85992019111',price:'R$ 59,90',pix:'pix-teste',pixCopyPaste:'000201NOVOPIX987654321'})}),env);assert.equal(settingsSave.status,200,'salvamento das configurações');
-const settingsSaved=await settingsSave.json();assert.equal(settingsSaved.whatsapp,'5585992019111','WhatsApp normalizado nas configurações');
+const settingsSave=await app.default.fetch(new Request('https://example.test/api/admin/settings?token=token-de-teste',{method:'POST',headers:{'Content-Type':'application/json',Origin:'https://example.test'},body:JSON.stringify({shop:'FC Loja Teste',whatsapp:'5512345678',price:'R$ 59,90',pix:'pix-teste',pixCopyPaste:'000201NOVOPIX987654321'})}),env);assert.equal(settingsSave.status,200,'salvamento das configurações');
+const settingsSaved=await settingsSave.json();assert.equal(settingsSaved.whatsapp,'525512345678','WhatsApp normalizado nas configurações');
 const shopAfter=await (await app.default.fetch(new Request('https://example.test/api/shop'),env)).json();
 assert.equal(shopAfter.shop,'FC Loja Teste','nome da loja aplicado');assert.equal(shopAfter.price,'R$ 59,90','preço aplicado');assert.equal(shopAfter.pix,'pix-teste','Pix aplicado');assert.equal(shopAfter.pixCopyPaste,'000201NOVOPIX987654321','Pix Copia e Cola aplicado');assert.equal(shopAfter.whatsappConfigured,true,'WhatsApp aplicado');
 console.log('HTML/JS valid; 12 rotas de passo, deep link, crop/prévia, pedido no WhatsApp, painel e isolamento de sessão verificados.');
