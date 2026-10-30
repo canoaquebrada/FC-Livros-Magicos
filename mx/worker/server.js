@@ -106,7 +106,7 @@ const poseKey=cleanText(body.pose);
 const allowedStyle=body.type==='casal'?Boolean(couplePromptMap[body.style]):Boolean(commonStylePromptMap[body.style]);
 const customerName=cleanText(body.customerName).slice(0,80);
 let customerWhatsapp=cleanText(body.customerWhatsapp).replace(/[^0-9]/g,'');
-if((customerWhatsapp.length===10||customerWhatsapp.length===11)&&!customerWhatsapp.startsWith('55'))customerWhatsapp='55'+customerWhatsapp;
+if(customerWhatsapp.length===10)customerWhatsapp='52'+customerWhatsapp;
 if(customerWhatsapp&&(customerWhatsapp.length<12||customerWhatsapp.length>15))customerWhatsapp='';
 if(!customerWhatsapp)return json({error:'Ingresa un WhatsApp válido con clave de país, por ejemplo +52, para generar la vista previa.'},400,cookie);
 

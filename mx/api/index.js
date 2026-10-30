@@ -21,10 +21,10 @@ const STYLE_IMAGE_SOURCES = {
 // com o token legado BLOB_READ_WRITE_TOKEN.
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
 const blobStoreId = process.env.BLOB_STORE_ID || '';
-const blobPrefix = 'fc-livros-magicos/';
-const supabaseUrl = process.env.SUPABASE_URL || 'https://jsttcmfwsqqsfzlnwqlm.supabase.co';
-const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_MHjsH7bJlaFwIGzXihUFFg_JribCp_9';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzdHRjbWZ3c3Fxc2Z6bG53cWxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTQzNjYsImV4cCI6MjA5Nzk3MDM2Nn0.xWmCJ4bzy2GpslHwARwvputYaptKNFcJQBCAxeIdMqU';
+const blobPrefix = 'fc-livros-magicos-mx/';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 const supabaseMediaBucket = 'fc-previews';
 
 function createSupabaseBucket() {
