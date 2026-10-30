@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build && npm run validate && npm run smoke",
+  "buildCommand": "npm run build && npm run validate && npm run smoke && node scripts/storage-smoke.mjs",
   "outputDirectory": "public",
   "rewrites": [
     {
