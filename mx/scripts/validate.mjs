@@ -16,7 +16,7 @@ for(const removedStyle of ['Praia Romântica','Social Elegante','Preto & Branco'
 assert(quizHtml.includes('Elige uno de los 3 estilos profesionales'),'quiz deve mostrar somente 3 estilos de casal');
 assert(quizHtml.includes('Elige la pose'),'quiz explica a seleção das poses do casal');
 assert(quizHtml.includes('customerName')&&quizHtml.includes('customerWhatsapp')&&quizHtml.includes('* obligatorio')&&quizHtml.includes('whatsappAlert'),'quiz exige WhatsApp para gerar prévia');
-assert(quizHtml.includes('id="unlock"')&&quizHtml.includes('id="whatsapp"')&&quizHtml.includes('Finaliza por WhatsApp'),'quiz deve finalizar pelo WhatsApp com botões para cliente');
+assert(quizHtml.includes('id="unlock"')&&quizHtml.includes('id="whatsapp"')&&quizHtml.includes('Quiero recibir mi foto por solo $75 MXN')&&quizHtml.includes('Si te gusta, realizas el pago.')&&quizHtml.includes('Recibes las fotos en alta calidad y sin marca de agua.')&&quizHtml.includes('Aceptamos transferencias SPEI.'),'quiz mexicano mostra CTA de 75 MXN e informacoes de pagamento');
 assert(!quizHtml.includes('pay.finaliza.shop')&&!quizHtml.includes('checkoutFrame'),'checkout embutido não deve aparecer no quiz');
 assert(quizHtml.includes('/api/quiz-event')&&quizHtml.includes("trackQuizEvent('generate')")&&quizHtml.includes("trackQuizEvent('preview')"),'quiz mantém os eventos existentes de geração e prévia');
 assert(quizHtml.includes("$('#unlock').href=data.unlockWaLink||data.waLink"),'WhatsApp para finalizar deve usar link retornado pelo servidor');
