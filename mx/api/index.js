@@ -28,148 +28,93 @@ const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 const supabaseMediaBucket = 'fc-previews';
 
 function createSupabaseBucket() {
-  const secret = process.env.ADMIN_TOKEN || '';
+  const secret = process.env.SUPABASE_MX_STORAGE_SECRET || '';
   const enabled = Boolean(supabaseUrl && supabaseKey && secret);
-
-  async function rpc(name, payload) {
-    if (!enabled) throw new Error('Supabase persistent store is not configured');
-    const response = await fetch(supabaseUrl + '/rest/v1/rpc/' + name, {
+  const endpoint = supabaseUrl + '/functions/v1/fc-mx-storage';
+  const authHeaders = () => ({
+    'apikey': supabaseKey,
+    'x-fc-mx-storage-secret': secret,
+  });
+  async function requestJson(action, params) {
+    if (!enabled) throw new Error('Mexico Supabase storage is not configured');
+    const response = await fetch(endpoint + '?action=' + encodeURIComponent(action), {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'apikey': supabaseKey,
-        'authorization': 'Bearer ' + supabaseAnonKey,
-        'x-fc-storage-secret': secret,
-      },
-      body: JSON.stringify(payload),
+      headers: {...authHeaders(), 'content-type': 'application/json'},
+      body: JSON.stringify(params),
     });
     const raw = await response.text();
-    if (!response.ok) throw new Error('Supabase RPC ' + name + ' failed: ' + response.status + ' ' + raw.slice(0, 300));
+    if (!response.ok) throw new Error('MX Supabase '+action+' failed: '+response.status+' '+raw.slice(0,200));
     if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return raw; }
+    return JSON.parse(raw);
   }
-
-
-  function mediaHeaders(contentType) {
-    return {
-      apikey: supabaseKey,
-      authorization: 'Bearer ' + supabaseAnonKey,
-      'x-fc-storage-secret': secret,
-      ...(contentType ? {'content-type': contentType} : {}),
-    };
-  }
-
   async function toMediaBytes(value) {
     const raw = String(value || '');
     const data = raw.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (data) return { bytes: Buffer.from(data[2], 'base64'), contentType: data[1] };
     if (/^https?:\/\//i.test(raw)) {
       const response = await fetch(raw);
-      if (!response.ok) throw new Error('Could not download generated image: ' + response.status);
+      if (!response.ok) throw new Error('Could not download generated image: '+response.status);
       return { bytes: Buffer.from(await response.arrayBuffer()), contentType: (response.headers.get('content-type') || 'image/jpeg').split(';')[0] };
     }
     throw new Error('Unsupported media value');
   }
-
   const media = {
     async putImage(id, kind, value) {
       if (!enabled) return null;
       const source = await toMediaBytes(value);
       const ext = source.contentType === 'image/png' ? 'png' : source.contentType === 'image/webp' ? 'webp' : 'jpg';
-      const path = String(id).replace(/[^A-Za-z0-9_-]/g, '') + '/' + String(kind).replace(/[^a-z]/gi, '') + '.' + ext;
-      const endpoint = supabaseUrl + '/storage/v1/object/' + supabaseMediaBucket + '/' + path;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {...mediaHeaders(source.contentType), 'x-upsert': 'true'},
-        body: source.bytes,
+      const path = String(id).replace(/[^A-Za-z0-9_-]/g,'') + '/' + String(kind).replace(/[^a-z]/gi,'') + '.' + ext;
+      const url = endpoint + '?action=media-put&path=' + encodeURIComponent(path);
+      const response = await fetch(url, {
+        method: 'POST', headers: {...authHeaders(), 'content-type':source.contentType}, body: source.bytes,
       });
-      const raw = await response.text();
-      if (!response.ok) throw new Error('Supabase Storage upload failed: ' + response.status + ' ' + raw.slice(0, 250));
-      return 'media://' + path;
+      const data = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error('MX Supabase image upload failed: '+response.status+' '+JSON.stringify(data).slice(0,150));
+      return data.ref || ('media://'+path);
     },
     async getImage(ref) {
-      const path = String(ref || '').replace(/^media:\/\//, '');
+      if (!enabled) return null;
+      const path = String(ref||'').replace(/^media:\/\//,'');
       if (!path) return null;
-      const response = await fetch(supabaseUrl + '/storage/v1/object/authenticated/' + supabaseMediaBucket + '/' + path, {
-        headers: mediaHeaders(),
+      const response = await fetch(endpoint+'?action=media-get&path='+encodeURIComponent(path), {
+        headers: authHeaders(),
       });
       if (response.status === 404) return null;
-      if (!response.ok) throw new Error('Supabase Storage read failed: ' + response.status);
+      if (!response.ok) throw new Error('MX Supabase image fetch failed: '+response.status);
       return {
-        bytes: Buffer.from(await response.arrayBuffer()),
-        contentType: (response.headers.get('content-type') || 'image/jpeg').split(';')[0],
+        bytes:Buffer.from(await response.arrayBuffer()),
+        contentType:(response.headers.get('content-type')||'image/jpeg').split(';')[0],
       };
     },
     async deleteImage(ref) {
-      const path = String(ref || '').replace(/^media:\/\//, '');
+      if (!enabled) return;
+      const path = String(ref||'').replace(/^media:\/\//,'');
       if (!path) return;
-      const response = await fetch(supabaseUrl + '/storage/v1/object/' + supabaseMediaBucket + '/' + path, {
-        method: 'DELETE',
-        headers: {...mediaHeaders('application/json')},
+      const response = await fetch(endpoint+'?action=media-delete&path='+encodeURIComponent(path),{
+        method:'DELETE',headers:authHeaders(),
       });
-      if (!response.ok && response.status !== 404) throw new Error('Supabase Storage delete failed: ' + response.status);
+      if (!response.ok && response.status!==404) throw new Error('MX Supabase image deletion failed: '+response.status);
     },
   };
-
   return {
     storagePersistent: enabled,
-    provider: 'supabase',
+    provider:'supabase',
     media,
-
-    async quizVisitStats() {
-      const data = await rpc('fc_quiz_visit_stats', { p_secret: secret });
-      return {
-        total: Math.max(0, Number(data && data.total) || 0),
-        today: Math.max(0, Number(data && data.today) || 0),
-      };
-    },
-
-    async registerQuizVisit(sessionToken) {
-      const data = await rpc('fc_quiz_visit_register', {
-        p_secret: secret,
-        p_session: String(sessionToken || ''),
-      });
-      return {
-        total: Math.max(0, Number(data && data.total) || 0),
-        today: Math.max(0, Number(data && data.today) || 0),
-      };
-    },
-
-    async quizJourneyAnalytics() {
-      const data = await rpc('fc_quiz_journey_analytics', { p_secret: secret });
-      return data && typeof data === 'object'
-        ? data
-        : { counts: {}, sources: [], devices: {}, recent: [] };
-    },
-
     async get(key) {
-      const value = await rpc('fc_store_get', { p_secret: secret, p_key: String(key) });
+      const value = await requestJson('get',{key:String(key)});
       if (value == null) return null;
-      const raw = typeof value === 'string' ? value : String(value);
-      return { json: async () => JSON.parse(raw) };
+      return {json: async()=>JSON.parse(typeof value==='string'?value:String(value))};
     },
-
-    async put(key, value) {
-      await rpc('fc_store_put', {
-        p_secret: secret,
-        p_key: String(key),
-        p_value: String(value),
-      });
+    async put(key,value) {
+      await requestJson('put',{key:String(key),value:String(value)});
     },
-
     async delete(key) {
-      await rpc('fc_store_delete', { p_secret: secret, p_key: String(key) });
+      await requestJson('delete',{key:String(key)});
     },
-
-    async list(prefix, limit = 500) {
-      const rows = await rpc('fc_store_list', {
-        p_secret: secret,
-        p_prefix: String(prefix || ''),
-        p_limit: Math.max(1, Math.min(500, Number(limit) || 500)),
-      });
-      return (Array.isArray(rows) ? rows : []).map(row => ({
-        key: String(row.key || ''),
-        uploadedAt: row.uploaded_at || null,
+    async list(prefix,limit=500) {
+      const rows = await requestJson('list',{prefix:String(prefix||''),limit:Math.max(1,Math.min(500,Number(limit)||500))});
+      return (Array.isArray(rows)?rows:[]).map(row=>({
+        key:String(row.key||''), uploadedAt:row.uploaded_at||null,
       }));
     },
   };
