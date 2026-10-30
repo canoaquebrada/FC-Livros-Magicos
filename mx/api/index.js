@@ -1,0 +1,461 @@
+import worker from '../dist/server/index.js';
+import { put, get, del, list } from '@vercel/blob';
+import { getVercelOidcToken } from '@vercel/oidc';
+
+const STYLE_IMAGE_SOURCES = {
+  "jeans": "https://images.pexels.com/photos/27640672/pexels-photo-27640672.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "claras": "https://images.pexels.com/photos/32505043/pexels-photo-32505043.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "coloridas": "https://images.pexels.com/photos/37179900/pexels-photo-37179900.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "praia": "https://images.pexels.com/photos/33640506/pexels-photo-33640506.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "social": "https://images.pexels.com/photos/36028975/pexels-photo-36028975.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "pb": "https://images.pexels.com/photos/35316894/pexels-photo-35316894.jpeg?auto=compress&cs=tinysrgb&w=1000",
+  "pose1": "https://images.pexels.com/photos/32546693/pexels-photo-32546693.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose2": "https://images.pexels.com/photos/32505043/pexels-photo-32505043.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose3": "https://images.pexels.com/photos/15972554/pexels-photo-15972554.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose4": "https://images.pexels.com/photos/20233007/pexels-photo-20233007.jpeg?auto=compress&cs=tinysrgb&w=900",
+  "pose5": "https://images.pexels.com/photos/36103803/pexels-photo-36103803.jpeg?auto=compress&cs=tinysrgb&w=900"
+};
+
+// Armazenamento persistente na Vercel.
+// Usa OIDC + BLOB_STORE_ID (modo recomendado atual) e mantém compatibilidade
+// com o token legado BLOB_READ_WRITE_TOKEN.
+const blobToken = process.env.BLOB_READ_WRITE_TOKEN || '';
+const blobStoreId = process.env.BLOB_STORE_ID || '';
+const blobPrefix = 'fc-livros-magicos/';
+const supabaseUrl = process.env.SUPABASE_URL || 'https://jsttcmfwsqqsfzlnwqlm.supabase.co';
+const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_MHjsH7bJlaFwIGzXihUFFg_JribCp_9';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzdHRjbWZ3c3Fxc2Z6bG53cWxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzOTQzNjYsImV4cCI6MjA5Nzk3MDM2Nn0.xWmCJ4bzy2GpslHwARwvputYaptKNFcJQBCAxeIdMqU';
+const supabaseMediaBucket = 'fc-previews';
+
+function createSupabaseBucket() {
+  const secret = process.env.ADMIN_TOKEN || '';
+  const enabled = Boolean(supabaseUrl && supabaseKey && secret);
+
+  async function rpc(name, payload) {
+    if (!enabled) throw new Error('Supabase persistent store is not configured');
+    const response = await fetch(supabaseUrl + '/rest/v1/rpc/' + name, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'apikey': supabaseKey,
+        'authorization': 'Bearer ' + supabaseAnonKey,
+        'x-fc-storage-secret': secret,
+      },
+      body: JSON.stringify(payload),
+    });
+    const raw = await response.text();
+    if (!response.ok) throw new Error('Supabase RPC ' + name + ' failed: ' + response.status + ' ' + raw.slice(0, 300));
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return raw; }
+  }
+
+
+  function mediaHeaders(contentType) {
+    return {
+      apikey: supabaseKey,
+      authorization: 'Bearer ' + supabaseAnonKey,
+      'x-fc-storage-secret': secret,
+      ...(contentType ? {'content-type': contentType} : {}),
+    };
+  }
+
+  async function toMediaBytes(value) {
+    const raw = String(value || '');
+    const data = raw.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (data) return { bytes: Buffer.from(data[2], 'base64'), contentType: data[1] };
+    if (/^https?:\/\//i.test(raw)) {
+      const response = await fetch(raw);
+      if (!response.ok) throw new Error('Could not download generated image: ' + response.status);
+      return { bytes: Buffer.from(await response.arrayBuffer()), contentType: (response.headers.get('content-type') || 'image/jpeg').split(';')[0] };
+    }
+    throw new Error('Unsupported media value');
+  }
+
+  const media = {
+    async putImage(id, kind, value) {
+      if (!enabled) return null;
+      const source = await toMediaBytes(value);
+      const ext = source.contentType === 'image/png' ? 'png' : source.contentType === 'image/webp' ? 'webp' : 'jpg';
+      const path = String(id).replace(/[^A-Za-z0-9_-]/g, '') + '/' + String(kind).replace(/[^a-z]/gi, '') + '.' + ext;
+      const endpoint = supabaseUrl + '/storage/v1/object/' + supabaseMediaBucket + '/' + path;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {...mediaHeaders(source.contentType), 'x-upsert': 'true'},
+        body: source.bytes,
+      });
+      const raw = await response.text();
+      if (!response.ok) throw new Error('Supabase Storage upload failed: ' + response.status + ' ' + raw.slice(0, 250));
+      return 'media://' + path;
+    },
+    async getImage(ref) {
+      const path = String(ref || '').replace(/^media:\/\//, '');
+      if (!path) return null;
+      const response = await fetch(supabaseUrl + '/storage/v1/object/authenticated/' + supabaseMediaBucket + '/' + path, {
+        headers: mediaHeaders(),
+      });
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error('Supabase Storage read failed: ' + response.status);
+      return {
+        bytes: Buffer.from(await response.arrayBuffer()),
+        contentType: (response.headers.get('content-type') || 'image/jpeg').split(';')[0],
+      };
+    },
+    async deleteImage(ref) {
+      const path = String(ref || '').replace(/^media:\/\//, '');
+      if (!path) return;
+      const response = await fetch(supabaseUrl + '/storage/v1/object/' + supabaseMediaBucket + '/' + path, {
+        method: 'DELETE',
+        headers: {...mediaHeaders('application/json')},
+      });
+      if (!response.ok && response.status !== 404) throw new Error('Supabase Storage delete failed: ' + response.status);
+    },
+  };
+
+  return {
+    storagePersistent: enabled,
+    provider: 'supabase',
+    media,
+
+    async quizVisitStats() {
+      const data = await rpc('fc_quiz_visit_stats', { p_secret: secret });
+      return {
+        total: Math.max(0, Number(data && data.total) || 0),
+        today: Math.max(0, Number(data && data.today) || 0),
+      };
+    },
+
+    async registerQuizVisit(sessionToken) {
+      const data = await rpc('fc_quiz_visit_register', {
+        p_secret: secret,
+        p_session: String(sessionToken || ''),
+      });
+      return {
+        total: Math.max(0, Number(data && data.total) || 0),
+        today: Math.max(0, Number(data && data.today) || 0),
+      };
+    },
+
+    async quizJourneyAnalytics() {
+      const data = await rpc('fc_quiz_journey_analytics', { p_secret: secret });
+      return data && typeof data === 'object'
+        ? data
+        : { counts: {}, sources: [], devices: {}, recent: [] };
+    },
+
+    async get(key) {
+      const value = await rpc('fc_store_get', { p_secret: secret, p_key: String(key) });
+      if (value == null) return null;
+      const raw = typeof value === 'string' ? value : String(value);
+      return { json: async () => JSON.parse(raw) };
+    },
+
+    async put(key, value) {
+      await rpc('fc_store_put', {
+        p_secret: secret,
+        p_key: String(key),
+        p_value: String(value),
+      });
+    },
+
+    async delete(key) {
+      await rpc('fc_store_delete', { p_secret: secret, p_key: String(key) });
+    },
+
+    async list(prefix, limit = 500) {
+      const rows = await rpc('fc_store_list', {
+        p_secret: secret,
+        p_prefix: String(prefix || ''),
+        p_limit: Math.max(1, Math.min(500, Number(limit) || 500)),
+      });
+      return (Array.isArray(rows) ? rows : []).map(row => ({
+        key: String(row.key || ''),
+        uploadedAt: row.uploaded_at || null,
+      }));
+    },
+  };
+}
+
+
+// Fallback apenas para desenvolvimento/ambientes sem Blob conectado.
+const memory = globalThis.__FC_LIVROS_BUCKET__ || (globalThis.__FC_LIVROS_BUCKET__ = new Map());
+const blobHealth = globalThis.__FC_LIVROS_BLOB_HEALTH__ || (globalThis.__FC_LIVROS_BLOB_HEALTH__ = { checkedAt: 0, ok: null, lastError: '' });
+
+async function usableBlobAuth(blobAuth) {
+  if (!blobAuth) return null;
+  const now = Date.now();
+  if (blobHealth.ok !== null && now - blobHealth.checkedAt < 60000) return blobHealth.ok ? blobAuth : null;
+  try {
+    await get(blobPrefix + 'analytics/visits.json', {
+      access: 'private',
+      ...blobAuth,
+      useCache: false,
+    });
+    blobHealth.ok = true;
+    blobHealth.lastError = '';
+    blobHealth.checkedAt = now;
+    return blobAuth;
+  } catch (error) {
+    blobHealth.ok = false;
+    blobHealth.checkedAt = now;
+    blobHealth.lastError = error && error.message ? error.message : String(error || '');
+    console.error('Vercel Blob unavailable; using temporary memory fallback:', blobHealth.lastError);
+    return null;
+  }
+}
+
+
+async function resolveBlobAuth() {
+  if (blobToken) return { token: blobToken };
+  if (!blobStoreId) return null;
+  try {
+    const oidcToken = await getVercelOidcToken();
+    return oidcToken ? { oidcToken, storeId: blobStoreId } : null;
+  } catch (error) {
+    console.error('Vercel Blob OIDC unavailable', error && error.message ? error.message : error);
+    return null;
+  }
+}
+
+function createBucket(blobAuth) {
+  const storagePersistent = Boolean(blobAuth);
+
+  async function readBlobJson(pathname) {
+    const result = await get(pathname, {
+      access: 'private',
+      ...blobAuth,
+      useCache: false,
+    });
+    if (!result) return null;
+    const raw = await new Response(result.stream).text();
+    return JSON.parse(raw);
+  }
+
+  return {
+    storagePersistent,
+
+    async get(key) {
+      if (storagePersistent) {
+        try {
+          const pathname = blobPrefix + key;
+          const value = await readBlobJson(pathname);
+          return value === null ? null : { json: async () => value };
+        } catch (error) {
+          console.error('Blob get failed; falling back to memory:', error && error.message ? error.message : error);
+        }
+      }
+      if (!memory.has(key)) return null;
+      const raw = memory.get(key);
+      return { json: async () => JSON.parse(raw) };
+    },
+
+    async put(key, value) {
+      if (storagePersistent) {
+        try {
+          await put(blobPrefix + key, String(value), {
+            access: 'private',
+            ...blobAuth,
+            addRandomSuffix: false,
+            allowOverwrite: true,
+            contentType: 'application/json; charset=utf-8',
+            cacheControlMaxAge: 0,
+          });
+          return;
+        } catch (error) {
+          console.error('Blob put failed; falling back to memory:', error && error.message ? error.message : error);
+        }
+      }
+      memory.set(key, String(value));
+    },
+
+    async delete(key) {
+      if (storagePersistent) {
+        try {
+          await del(blobPrefix + key, blobAuth);
+          return;
+        } catch (error) {
+          console.error('Blob delete failed; falling back to memory:', error && error.message ? error.message : error);
+        }
+      }
+      memory.delete(key);
+    },
+
+    async list(prefix, limit = 500) {
+      const cleanPrefix = String(prefix || '');
+      const max = Math.max(1, Math.min(500, Number(limit) || 500));
+      if (storagePersistent) {
+        try {
+          const items = [];
+          let cursor;
+          do {
+            const page = await list({
+              ...blobAuth,
+              prefix: blobPrefix + cleanPrefix,
+              limit: Math.min(1000, max - items.length),
+              cursor,
+            });
+            for (const blob of page.blobs || []) {
+              if (items.length >= max) break;
+              const pathname = String(blob.pathname || '');
+              items.push({
+                key: pathname.startsWith(blobPrefix) ? pathname.slice(blobPrefix.length) : pathname,
+                uploadedAt: blob.uploadedAt || null,
+              });
+            }
+            cursor = page.hasMore && items.length < max ? page.cursor : undefined;
+          } while (cursor && items.length < max);
+          return items;
+        } catch (error) {
+          console.error('Blob list failed; falling back to memory:', error && error.message ? error.message : error);
+        }
+      }
+      return [...memory.keys()]
+        .filter(key => String(key).startsWith(cleanPrefix))
+        .slice(0, max)
+        .map(key => ({ key: String(key), uploadedAt: null }));
+    },
+  };
+}
+
+async function styleImageResponse(name, blobAuth) {
+  const clean = String(name || '').toLowerCase();
+  const source = STYLE_IMAGE_SOURCES[clean];
+  if (!source) return new Response('Not found', { status: 404 });
+  if (!blobAuth) {
+    const remote = await fetch(source);
+    if (!remote.ok) return new Response('Image unavailable', { status: 502 });
+    return new Response(await remote.arrayBuffer(), {
+      status: 200,
+      headers: {
+        'content-type': remote.headers.get('content-type') || 'image/png',
+        'cache-control': 'public, max-age=86400, stale-while-revalidate=604800',
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  }
+
+  const pathname = blobPrefix + 'style-images/' + clean + '.png';
+  let existing;
+  try {
+    existing = await get(pathname, { access: 'private', ...blobAuth, useCache: false });
+  } catch (error) {
+    console.error('Style image Blob read failed; serving source directly:', error && error.message ? error.message : error);
+    const remote = await fetch(source);
+    if (!remote.ok) return new Response('Image unavailable', { status: 502 });
+    return new Response(await remote.arrayBuffer(), {
+      status: 200,
+      headers: {
+        'content-type': remote.headers.get('content-type') || 'image/png',
+        'cache-control': 'public, max-age=86400, stale-while-revalidate=604800',
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  }
+  if (existing) {
+    return new Response(existing.stream, {
+      status: 200,
+      headers: {
+        'content-type': existing.blob?.contentType || 'image/png',
+        'cache-control': 'public, max-age=86400',
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  }
+
+  const remote = await fetch(source);
+  if (!remote.ok) return new Response('Image unavailable', { status: 502 });
+  const bytes = await remote.arrayBuffer();
+  await put(pathname, bytes, {
+    access: 'private',
+    ...blobAuth,
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: remote.headers.get('content-type') || 'image/png',
+    cacheControlMaxAge: 31536000,
+  });
+
+  return new Response(bytes, {
+    status: 200,
+    headers: {
+      'content-type': remote.headers.get('content-type') || 'image/png',
+      'cache-control': 'public, max-age=86400',
+      'x-content-type-options': 'nosniff',
+    },
+  });
+}
+
+function requestBody(req) {
+  if (req.method === 'GET' || req.method === 'HEAD') return undefined;
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', chunk => chunks.push(Buffer.from(chunk)));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function webHeaders(req) {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers || {})) {
+    if (value == null) continue;
+    if (Array.isArray(value)) value.forEach(item => headers.append(name, String(item)));
+    else headers.set(name, String(value));
+  }
+  return headers;
+}
+
+export default async function handler(req, res) {
+  try {
+    const proto = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers.host || 'localhost';
+    const url = new URL(req.url || '/', `${proto}://${host}`);
+    const routedPath = url.searchParams.get('__path');
+    if (routedPath !== null) {
+      url.pathname = '/' + routedPath.replace(/^\/+/, '');
+      url.searchParams.delete('__path');
+    }
+
+    const supabaseBucket = createSupabaseBucket();
+    const resolvedBlobAuth = supabaseBucket.storagePersistent ? null : await resolveBlobAuth();
+    const blobAuth = supabaseBucket.storagePersistent ? null : await usableBlobAuth(resolvedBlobAuth);
+    if (url.pathname === '/api/style-image') {
+      const response = await styleImageResponse(url.searchParams.get('name'), blobAuth);
+      res.statusCode = response.status;
+      for (const [name, value] of response.headers) res.setHeader(name, value);
+      return res.end(Buffer.from(await response.arrayBuffer()));
+    }
+
+    const body = await requestBody(req);
+    const request = new Request(url, {
+      method: req.method,
+      headers: webHeaders(req),
+      body,
+    });
+
+    const bucket = supabaseBucket.storagePersistent ? supabaseBucket : createBucket(blobAuth);
+
+    const response = await worker.fetch(request, {
+      ...process.env,
+      BUCKET: bucket,
+      STORAGE_PERSISTENT: bucket.storagePersistent ? '1' : '',
+      STORAGE_PROVIDER: bucket.provider || (bucket.storagePersistent ? 'vercel-blob' : 'memory'),
+      MEDIA: supabaseBucket.media || null,
+    });
+    res.statusCode = response.status;
+
+    const setCookies = [];
+    for (const [name, value] of response.headers) {
+      if (name.toLowerCase() === 'set-cookie') setCookies.push(value);
+      else res.setHeader(name, value);
+    }
+    if (setCookies.length) res.setHeader('set-cookie', setCookies);
+
+    if (req.method === 'HEAD') return res.end();
+    const bytes = Buffer.from(await response.arrayBuffer());
+    res.end(bytes);
+  } catch (error) {
+    console.error('Vercel adapter failed', error);
+    res.statusCode = 500;
+    res.setHeader('content-type', 'text/plain; charset=utf-8');
+    res.end('Erro interno do servidor');
+  }
+}

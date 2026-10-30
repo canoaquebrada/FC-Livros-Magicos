@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build && npm run validate && npm run smoke",
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api?__path=$1"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/quiz",
+      "permanent": false
+    }
+  ]
+}
